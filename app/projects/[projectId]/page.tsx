@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import { FoundationProject } from "@/domain/projects/project";
 import { getLocalProjectById } from "@/lib/local-project-store";
+import { getInterviewCompletionPercentage } from "@/lib/local-interview-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,9 +33,16 @@ const plannedDocuments = [
 export default function ProjectDetailPage() {
   const params = useParams<{ projectId: string }>();
   const [project, setProject] = useState<FoundationProject | null>(null);
+  const [completion, setCompletion] = useState(0);
 
   useEffect(() => {
-    setProject(getLocalProjectById(params.projectId));
+    const loadedProject = getLocalProjectById(params.projectId);
+
+    setProject(loadedProject);
+
+    if (loadedProject) {
+      setCompletion(getInterviewCompletionPercentage(loadedProject.id));
+    }
   }, [params.projectId]);
 
   if (!project) {
@@ -84,7 +92,11 @@ export default function ProjectDetailPage() {
             </p>
           </div>
 
-          <Button>Iniciar entrevista</Button>
+          <Button asChild>
+            <Link href={`/projects/${project.id}/interview`}>
+              Iniciar entrevista
+            </Link>
+          </Button>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -133,9 +145,10 @@ export default function ProjectDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Progress value={12} />
+                <Progress value={Math.max(12, completion)} />
                 <p className="text-sm text-muted-foreground">
-                  12% — Proyecto creado, entrevista pendiente.
+                  {Math.max(12, completion)}% — Proyecto creado
+                  {completion > 0 ? ", entrevista iniciada." : ", entrevista pendiente."}
                 </p>
               </CardContent>
             </Card>
