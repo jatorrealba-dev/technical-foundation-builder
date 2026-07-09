@@ -92,11 +92,19 @@ export default function ProjectDetailPage() {
             </p>
           </div>
 
-          <Button asChild>
-            <Link href={`/projects/${project.id}/interview`}>
-              Iniciar entrevista
-            </Link>
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${project.id}/analysis`}>
+                Ver análisis inicial
+              </Link>
+            </Button>
+
+            <Button asChild>
+              <Link href={`/projects/${project.id}/interview`}>
+                Iniciar entrevista
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
