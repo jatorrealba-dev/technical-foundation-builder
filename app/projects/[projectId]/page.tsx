@@ -94,6 +94,12 @@ export default function ProjectDetailPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button variant="outline" asChild>
+              <Link href={`/projects/${project.id}/documents`}>
+                Ver documentos
+              </Link>
+            </Button>
+
+            <Button variant="outline" asChild>
               <Link href={`/projects/${project.id}/analysis`}>
                 Ver análisis inicial
               </Link>
