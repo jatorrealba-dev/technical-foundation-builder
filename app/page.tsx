@@ -24,7 +24,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-10">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-medium text-muted-foreground">
               Technical Foundation Builder
@@ -34,9 +34,15 @@ export default function HomePage() {
             </h1>
           </div>
 
-          <Button asChild>
-            <Link href="/dashboard">Entrar al dashboard</Link>
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="outline" asChild>
+              <Link href="/login">Iniciar sesión</Link>
+            </Button>
+
+            <Button asChild>
+              <Link href="/register">Crear cuenta</Link>
+            </Button>
+          </div>
         </header>
 
         <div className="grid flex-1 items-center gap-10 py-16 lg:grid-cols-[1.1fr_0.9fr]">
@@ -60,11 +66,11 @@ export default function HomePage() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button size="lg" asChild>
-                <Link href="/projects/new">Crear primer proyecto</Link>
+                <Link href="/register">Crear primer proyecto</Link>
               </Button>
 
               <Button size="lg" variant="outline" asChild>
-                <Link href="/dashboard">Ver dashboard</Link>
+                <Link href="/login">Entrar al dashboard</Link>
               </Button>
             </div>
           </div>
