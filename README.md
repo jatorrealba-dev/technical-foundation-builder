@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Technical Foundation Builder
 
-## Getting Started
+Technical Foundation Builder es una plataforma SaaS web que ayuda a fundadores, consultores, agencias y desarrolladores nuevos a transformar una idea informal en una base técnica profesional lista para equipos de desarrollo y agentes de programación.
 
-First, run the development server:
+El producto entrevista al usuario, recopila requisitos, detecta supuestos, identifica contradicciones, genera documentos técnicos, calcula un nivel de preparación y exporta un paquete de desarrollo.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Objetivo inicial
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Construir un MVP que permita:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Crear una cuenta.
+2. Crear un proyecto.
+3. Describir una idea.
+4. Responder una entrevista guiada.
+5. Extraer requisitos estructurados.
+6. Generar un paquete técnico inicial.
+7. Calcular un Readiness Score.
+8. Exportar Markdown, PDF y ZIP.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Stack propuesto
 
-## Learn More
+- Next.js + TypeScript
+- React
+- Tailwind CSS + shadcn/ui
+- Supabase PostgreSQL
+- Supabase Auth
+- Supabase Storage
+- OpenAI Responses API / Agents SDK
+- Trigger.dev
+- Vercel
+- GitHub Actions
 
-To learn more about Next.js, take a look at the following resources:
+## Documentos incluidos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- PROJECT_CHARTER.md
+- PRODUCT_SPEC.md
+- MVP_SCOPE.md
+- DOMAIN_MODEL.md
+- ARCHITECTURE.md
+- DATA_MODEL.md
+- SECURITY.md
+- TEST_STRATEGY.md
+- BACKLOG.md
+- AGENTS.md
+- DEFINITION_OF_READY.md
+- DEFINITION_OF_DONE.md
+- VERTICAL_SLICE_PLAN.md
