@@ -50,6 +50,11 @@ type InterviewSessionRow = {
   current_stage: string;
 };
 
+type ProjectModelSummaryRow = {
+  status: string;
+  generated_at: string;
+};
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es", {
     dateStyle: "medium",
@@ -168,6 +173,20 @@ export default async function ProjectDetailPage({
     answeredCount = count ?? 0;
   }
 
+  const { data: projectModelData, error: projectModelError } =
+    await supabase
+      .from("project_models")
+      .select("status, generated_at")
+      .eq("project_id", projectRow.id)
+      .maybeSingle();
+
+  if (projectModelError) {
+    throw new Error(projectModelError.message);
+  }
+
+  const projectModel =
+    projectModelData as ProjectModelSummaryRow | null;
+
   const totalQuestions = initialInterviewQuestions.length;
 
   const interviewCompletion =
@@ -188,6 +207,10 @@ export default async function ProjectDetailPage({
     status: interviewStatus,
     answeredCount,
   });
+
+  const analysisButtonLabel = projectModel
+    ? "Revisar análisis"
+    : "Generar análisis";
 
   return (
     <main className="min-h-screen bg-background">
@@ -226,8 +249,10 @@ export default async function ProjectDetailPage({
               Documentos: siguiente paso
             </Button>
 
-            <Button variant="outline" disabled>
-              Análisis: siguiente paso
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${projectRow.id}/analysis`}>
+                {analysisButtonLabel}
+              </Link>
             </Button>
 
             <Button asChild>
@@ -342,6 +367,42 @@ export default async function ProjectDetailPage({
                     </span>
                   </p>
                 ) : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>
+                      Estado del análisis
+                    </CardTitle>
+
+                    <CardDescription className="mt-2">
+                      Project Model generado desde las respuestas
+                      persistidas de la entrevista.
+                    </CardDescription>
+                  </div>
+
+                  <Badge
+                    variant={projectModel ? "default" : "outline"}
+                  >
+                    {projectModel ? "Generado" : "Pendiente"}
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {projectModel ? (
+                  <p className="text-sm text-muted-foreground">
+                    Última generación:{" "}
+                    {formatDate(projectModel.generated_at)}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Todavía no se ha generado el análisis inicial.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
