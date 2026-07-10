@@ -1,11 +1,8 @@
-"use client";
-
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { createLocalProject } from "@/lib/local-project-store";
-import { ProductType, TechnicalLevel } from "@/domain/projects/project";
+import { createProjectAction } from "@/app/projects/actions";
+import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-const productTypes: Array<{ value: ProductType; label: string }> = [
+const productTypes = [
   { value: "saas", label: "SaaS" },
   { value: "web_app", label: "Aplicación web" },
   { value: "mobile_app", label: "Aplicación móvil" },
@@ -29,49 +26,56 @@ const productTypes: Array<{ value: ProductType; label: string }> = [
   { value: "other", label: "Otro" },
 ];
 
-const technicalLevels: Array<{ value: TechnicalLevel; label: string }> = [
+const technicalLevels = [
   { value: "non_technical", label: "No técnico" },
   { value: "beginner", label: "Principiante" },
   { value: "intermediate", label: "Intermedio" },
   { value: "advanced", label: "Avanzado" },
 ];
 
-export default function NewProjectPage() {
-  const router = useRouter();
+type NewProjectPageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [productType, setProductType] = useState<ProductType>("saas");
-  const [technicalLevel, setTechnicalLevel] =
-    useState<TechnicalLevel>("non_technical");
-  const [mainGoal, setMainGoal] = useState("");
-  const [error, setError] = useState("");
+export default async function NewProjectPage({
+  searchParams,
+}: NewProjectPageProps) {
+  const params = await searchParams;
+  const supabase = await createClient();
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!name.trim()) {
-      setError("El nombre del proyecto es obligatorio.");
-      return;
-    }
+  if (!user) {
+    redirect("/login");
+  }
 
-    if (!description.trim()) {
-      setError("La descripción de la idea es obligatoria.");
-      return;
-    }
+  const { data: membership, error: membershipError } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
 
-    const project = createLocalProject({
-      name,
-      description,
-      industry,
-      productType,
-      technicalLevel,
-      mainGoal,
-    });
+  if (membershipError) {
+    throw new Error(membershipError.message);
+  }
 
-    router.push(`/projects/${project.id}`);
+  if (!membership) {
+    redirect("/onboarding");
+  }
+
+  const { data: organization, error: organizationError } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", membership.organization_id)
+    .maybeSingle();
+
+  if (organizationError) {
+    throw new Error(organizationError.message);
   }
 
   return (
@@ -87,20 +91,23 @@ export default function NewProjectPage() {
           <CardHeader>
             <CardTitle>Crear nuevo proyecto</CardTitle>
             <CardDescription>
-              Describe la idea inicial. Luego la plataforma usará esta
-              información para comenzar la entrevista técnica.
+              Este proyecto se guardará en Supabase dentro de{" "}
+              <span className="font-medium text-foreground">
+                {organization?.name ?? "tu organización"}
+              </span>
+              .
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form action={createProjectAction} className="space-y-6">
               <div className="grid gap-2">
                 <Label htmlFor="name">Nombre del proyecto</Label>
                 <Input
                   id="name"
+                  name="name"
                   placeholder="Ejemplo: Technical Foundation Builder"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  required
                 />
               </div>
 
@@ -108,10 +115,10 @@ export default function NewProjectPage() {
                 <Label htmlFor="description">Describe tu idea</Label>
                 <Textarea
                   id="description"
+                  name="description"
                   placeholder="Explica qué quieres construir, para quién y qué problema resuelve."
                   className="min-h-36"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  required
                 />
               </div>
 
@@ -120,9 +127,8 @@ export default function NewProjectPage() {
                   <Label htmlFor="industry">Industria</Label>
                   <Input
                     id="industry"
+                    name="industry"
                     placeholder="Ejemplo: software, salud, educación..."
-                    value={industry}
-                    onChange={(event) => setIndustry(event.target.value)}
                   />
                 </div>
 
@@ -130,11 +136,9 @@ export default function NewProjectPage() {
                   <Label htmlFor="productType">Tipo de producto</Label>
                   <select
                     id="productType"
+                    name="productType"
+                    defaultValue="saas"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
-                    value={productType}
-                    onChange={(event) =>
-                      setProductType(event.target.value as ProductType)
-                    }
                   >
                     {productTypes.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -152,13 +156,9 @@ export default function NewProjectPage() {
                   </Label>
                   <select
                     id="technicalLevel"
+                    name="technicalLevel"
+                    defaultValue="non_technical"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
-                    value={technicalLevel}
-                    onChange={(event) =>
-                      setTechnicalLevel(
-                        event.target.value as TechnicalLevel
-                      )
-                    }
                   >
                     {technicalLevels.map((level) => (
                       <option key={level.value} value={level.value}>
@@ -172,16 +172,15 @@ export default function NewProjectPage() {
                   <Label htmlFor="mainGoal">Objetivo principal</Label>
                   <Input
                     id="mainGoal"
+                    name="mainGoal"
                     placeholder="Ejemplo: preparar un paquete para desarrolladores"
-                    value={mainGoal}
-                    onChange={(event) => setMainGoal(event.target.value)}
                   />
                 </div>
               </div>
 
-              {error ? (
+              {params.error ? (
                 <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  {error}
+                  {params.error}
                 </div>
               ) : null}
 
