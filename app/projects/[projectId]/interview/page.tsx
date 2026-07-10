@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useParams } from "next/navigation";
 
-import { FoundationProject } from "@/domain/projects/project";
-import { InterviewAnswer, ProjectInterview } from "@/domain/interviews/interview";
-import { getLocalProjectById } from "@/lib/local-project-store";
 import {
-  getInitialInterviewQuestions,
-  getInterviewCompletionPercentage,
-  getProjectInterview,
-  saveInterviewAnswer,
-} from "@/lib/local-interview-store";
+  initialInterviewQuestions,
+  InterviewAnswer,
+  InterviewStage,
+  ProjectInterview,
+} from "@/domain/interviews/interview";
+import { saveInterviewAnswerAction } from "@/app/projects/[projectId]/interview/actions";
+import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,28 +32,158 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
+type ProjectSummary = {
+  id: string;
+  name: string;
+};
+
+type InterviewSessionRow = {
+  id: string;
+  status: string;
+  current_stage: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type InterviewAnswerRow = {
+  question_id: string;
+  answer: string;
+  answered_at: string;
+};
+
+const interviewStages: InterviewStage[] = [
+  "idea",
+  "product",
+  "users",
+  "domain",
+  "security",
+  "architecture",
+  "delivery",
+];
+
+function normalizeInterviewStatus(
+  value: string | undefined
+): ProjectInterview["status"] {
+  if (value === "in_progress" || value === "completed") {
+    return value;
+  }
+
+  return "not_started";
+}
+
+function normalizeInterviewStage(
+  value: string | undefined
+): InterviewStage {
+  if (
+    value &&
+    interviewStages.includes(value as InterviewStage)
+  ) {
+    return value as InterviewStage;
+  }
+
+  return "idea";
+}
+
 export default function ProjectInterviewPage() {
   const params = useParams<{ projectId: string }>();
 
-  const [project, setProject] = useState<FoundationProject | null>(null);
+  const supabase = useMemo(() => createClient(), []);
+  const questions = useMemo(() => initialInterviewQuestions, []);
+
+  const [project, setProject] = useState<ProjectSummary | null>(null);
   const [interview, setInterview] = useState<ProjectInterview | null>(null);
-  const [activeQuestionId, setActiveQuestionId] = useState<string>("");
+  const [activeQuestionId, setActiveQuestionId] = useState("");
   const [answerDraft, setAnswerDraft] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const questions = useMemo(() => getInitialInterviewQuestions(), []);
+  const loadInterview = useCallback(async () => {
+    setLoading(true);
+    setError("");
 
-  useEffect(() => {
-    const loadedProject = getLocalProjectById(params.projectId);
-    const loadedInterview = getProjectInterview(params.projectId);
+    const { data: projectData, error: projectError } = await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("id", params.projectId)
+      .maybeSingle();
 
-    setProject(loadedProject);
+    if (projectError) {
+      setProject(null);
+      setInterview(null);
+      setError(projectError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!projectData) {
+      setProject(null);
+      setInterview(null);
+      setLoading(false);
+      return;
+    }
+
+    setProject(projectData as ProjectSummary);
+
+    const { data: sessionData, error: sessionError } = await supabase
+      .from("interview_sessions")
+      .select(
+        "id, status, current_stage, created_at, updated_at"
+      )
+      .eq("project_id", params.projectId)
+      .maybeSingle();
+
+    if (sessionError) {
+      setInterview(null);
+      setError(sessionError.message);
+      setLoading(false);
+      return;
+    }
+
+    const session = sessionData as InterviewSessionRow | null;
+
+    let answers: InterviewAnswer[] = [];
+
+    if (session) {
+      const { data: answerRows, error: answersError } = await supabase
+        .from("interview_answers")
+        .select("question_id, answer, answered_at")
+        .eq("interview_session_id", session.id)
+        .order("answered_at", { ascending: true });
+
+      if (answersError) {
+        setInterview(null);
+        setError(answersError.message);
+        setLoading(false);
+        return;
+      }
+
+      answers = ((answerRows ?? []) as InterviewAnswerRow[]).map(
+        (answerRow) => ({
+          questionId: answerRow.question_id,
+          answer: answerRow.answer,
+          answeredAt: answerRow.answered_at,
+        })
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    const loadedInterview: ProjectInterview = {
+      projectId: params.projectId,
+      status: normalizeInterviewStatus(session?.status),
+      currentStage: normalizeInterviewStage(session?.current_stage),
+      answers,
+      createdAt: session?.created_at ?? now,
+      updatedAt: session?.updated_at ?? now,
+    };
+
     setInterview(loadedInterview);
 
     const firstUnansweredQuestion =
       questions.find(
         (question) =>
-          !loadedInterview.answers.some(
+          !answers.some(
             (answer) => answer.questionId === question.id
           )
       ) ?? questions[0];
@@ -57,24 +192,40 @@ export default function ProjectInterviewPage() {
       setActiveQuestionId(firstUnansweredQuestion.id);
 
       const existingAnswer =
-        loadedInterview.answers.find(
-          (answer) => answer.questionId === firstUnansweredQuestion.id
+        answers.find(
+          (answer) =>
+            answer.questionId === firstUnansweredQuestion.id
         )?.answer ?? "";
 
       setAnswerDraft(existingAnswer);
     }
-  }, [params.projectId, questions]);
+
+    setLoading(false);
+  }, [params.projectId, questions, supabase]);
+
+  useEffect(() => {
+    void loadInterview();
+  }, [loadInterview]);
 
   const activeQuestion = questions.find(
     (question) => question.id === activeQuestionId
   );
 
   const completion = interview
-    ? getInterviewCompletionPercentage(interview.projectId)
+    ? Math.min(
+        100,
+        Math.round(
+          (interview.answers.length / questions.length) * 100
+        )
+      )
     : 0;
 
-  function getAnswer(questionId: string): InterviewAnswer | undefined {
-    return interview?.answers.find((answer) => answer.questionId === questionId);
+  function getAnswer(
+    questionId: string
+  ): InterviewAnswer | undefined {
+    return interview?.answers.find(
+      (answer) => answer.questionId === questionId
+    );
   }
 
   function selectQuestion(questionId: string) {
@@ -85,7 +236,9 @@ export default function ProjectInterviewPage() {
     setAnswerDraft(existingAnswer);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
     setError("");
 
@@ -99,25 +252,45 @@ export default function ProjectInterviewPage() {
       return;
     }
 
-    const updatedInterview = saveInterviewAnswer({
-      projectId: params.projectId,
-      questionId: activeQuestion.id,
-      answer: answerDraft,
-    });
+    setSaving(true);
 
-    setInterview(updatedInterview);
+    try {
+      const result = await saveInterviewAnswerAction({
+        projectId: params.projectId,
+        questionId: activeQuestion.id,
+        answer: answerDraft,
+      });
 
-    const nextQuestion = questions.find(
-      (question) =>
-        !updatedInterview.answers.some(
-          (answer) => answer.questionId === question.id
-        )
-    );
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
 
-    if (nextQuestion) {
-      setActiveQuestionId(nextQuestion.id);
-      setAnswerDraft("");
+      await loadInterview();
+    } catch {
+      setError(
+        "No fue posible guardar la respuesta. Intenta nuevamente."
+      );
+    } finally {
+      setSaving(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background">
+        <section className="mx-auto w-full max-w-4xl px-6 py-10">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cargando entrevista</CardTitle>
+              <CardDescription>
+                Consultando el proyecto y sus respuestas en Supabase.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </section>
+      </main>
+    );
   }
 
   if (!project || !interview) {
@@ -128,10 +301,17 @@ export default function ProjectInterviewPage() {
             <CardHeader>
               <CardTitle>Proyecto no encontrado</CardTitle>
               <CardDescription>
-                No existe un proyecto local con este identificador.
+                No existe un proyecto accesible con este identificador.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+
+            <CardContent className="space-y-4">
+              {error ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+
               <Button asChild>
                 <Link href="/dashboard">Volver al dashboard</Link>
               </Button>
@@ -147,14 +327,21 @@ export default function ProjectInterviewPage() {
       <section className="mx-auto w-full max-w-6xl px-6 py-10">
         <div className="mb-8">
           <Button variant="ghost" asChild>
-            <Link href={`/projects/${project.id}`}>← Volver al proyecto</Link>
+            <Link href={`/projects/${project.id}`}>
+              ← Volver al proyecto
+            </Link>
           </Button>
         </div>
 
         <header className="mb-10">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Entrevista inicial</Badge>
-            <Badge variant="outline">{interview.status}</Badge>
+            <Badge variant="secondary">
+              Entrevista inicial
+            </Badge>
+
+            <Badge variant="outline">
+              {interview.status}
+            </Badge>
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight">
@@ -162,16 +349,23 @@ export default function ProjectInterviewPage() {
           </h1>
 
           <p className="mt-3 max-w-3xl text-muted-foreground">
-            Responde estas preguntas base. Luego este contenido será usado para
-            extraer requisitos, entidades, supuestos, riesgos y documentos.
+            Responde estas preguntas base. Las respuestas se guardan
+            en Supabase y serán utilizadas para generar requisitos,
+            entidades, supuestos, riesgos y documentos.
           </p>
         </header>
 
         <div className="mb-8 space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Progreso de entrevista</span>
-            <span className="text-muted-foreground">{completion}%</span>
+            <span className="font-medium">
+              Progreso de entrevista
+            </span>
+
+            <span className="text-muted-foreground">
+              {completion}%
+            </span>
           </div>
+
           <Progress value={completion} />
         </div>
 
@@ -179,14 +373,18 @@ export default function ProjectInterviewPage() {
           <Card>
             <CardHeader>
               <CardTitle>Preguntas</CardTitle>
+
               <CardDescription>
-                Las preguntas están organizadas por áreas críticas del proyecto.
+                Las preguntas están organizadas por áreas críticas
+                del proyecto.
               </CardDescription>
             </CardHeader>
+
             <CardContent className="space-y-3">
               {questions.map((question) => {
                 const answered = Boolean(getAnswer(question.id));
-                const active = question.id === activeQuestionId;
+                const active =
+                  question.id === activeQuestionId;
 
                 return (
                   <button
@@ -203,10 +401,18 @@ export default function ProjectInterviewPage() {
                       <span className="text-sm font-medium">
                         {question.stage}
                       </span>
-                      <Badge variant={answered ? "default" : "outline"}>
-                        {answered ? "Respondida" : "Pendiente"}
+
+                      <Badge
+                        variant={
+                          answered ? "default" : "outline"
+                        }
+                      >
+                        {answered
+                          ? "Respondida"
+                          : "Pendiente"}
                       </Badge>
                     </div>
+
                     <p className="text-sm text-muted-foreground">
                       {question.question}
                     </p>
@@ -219,20 +425,34 @@ export default function ProjectInterviewPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>{activeQuestion?.question}</CardTitle>
-                <CardDescription>{activeQuestion?.helperText}</CardDescription>
+                <CardTitle>
+                  {activeQuestion?.question}
+                </CardTitle>
+
+                <CardDescription>
+                  {activeQuestion?.helperText}
+                </CardDescription>
               </CardHeader>
 
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form
+                  onSubmit={handleSubmit}
+                  className="space-y-5"
+                >
                   <div className="grid gap-2">
-                    <Label htmlFor="answer">Respuesta</Label>
+                    <Label htmlFor="answer">
+                      Respuesta
+                    </Label>
+
                     <Textarea
                       id="answer"
                       className="min-h-44"
                       placeholder="Escribe una respuesta clara y completa."
                       value={answerDraft}
-                      onChange={(event) => setAnswerDraft(event.target.value)}
+                      onChange={(event) =>
+                        setAnswerDraft(event.target.value)
+                      }
+                      disabled={saving}
                     />
                   </div>
 
@@ -243,7 +463,14 @@ export default function ProjectInterviewPage() {
                   ) : null}
 
                   <div className="flex justify-end">
-                    <Button type="submit">Guardar respuesta</Button>
+                    <Button
+                      type="submit"
+                      disabled={saving}
+                    >
+                      {saving
+                        ? "Guardando..."
+                        : "Guardar respuesta"}
+                    </Button>
                   </div>
                 </form>
               </CardContent>
@@ -251,11 +478,16 @@ export default function ProjectInterviewPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Resumen de respuestas</CardTitle>
+                <CardTitle>
+                  Resumen de respuestas
+                </CardTitle>
+
                 <CardDescription>
-                  Este resumen será la base del Project Model estructurado.
+                  Este resumen será la base del Project Model
+                  estructurado.
                 </CardDescription>
               </CardHeader>
+
               <CardContent>
                 {interview.answers.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
@@ -264,18 +496,28 @@ export default function ProjectInterviewPage() {
                 ) : (
                   <div className="space-y-5">
                     {questions
-                      .filter((question) => getAnswer(question.id))
+                      .filter((question) =>
+                        getAnswer(question.id)
+                      )
                       .map((question) => (
-                        <div key={question.id} className="space-y-2">
+                        <div
+                          key={question.id}
+                          className="space-y-2"
+                        >
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline">{question.stage}</Badge>
+                            <Badge variant="outline">
+                              {question.stage}
+                            </Badge>
+
                             <p className="text-sm font-medium">
                               {question.question}
                             </p>
                           </div>
+
                           <p className="text-sm leading-6 text-muted-foreground">
                             {getAnswer(question.id)?.answer}
                           </p>
+
                           <Separator />
                         </div>
                       ))}
