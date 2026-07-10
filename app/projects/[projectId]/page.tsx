@@ -1,12 +1,7 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { FoundationProject } from "@/domain/projects/project";
-import { getLocalProjectById } from "@/lib/local-project-store";
-import { getInterviewCompletionPercentage } from "@/lib/local-interview-store";
+import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,20 +25,57 @@ const plannedDocuments = [
   "VERTICAL_SLICE_PLAN.md",
 ];
 
-export default function ProjectDetailPage() {
-  const params = useParams<{ projectId: string }>();
-  const [project, setProject] = useState<FoundationProject | null>(null);
-  const [completion, setCompletion] = useState(0);
+type ProjectDetailPageProps = {
+  params: Promise<{
+    projectId: string;
+  }>;
+};
 
-  useEffect(() => {
-    const loadedProject = getLocalProjectById(params.projectId);
+type ProjectRow = {
+  id: string;
+  name: string;
+  description: string;
+  industry: string;
+  product_type: string;
+  technical_level: string;
+  main_goal: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
 
-    setProject(loadedProject);
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("es", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
 
-    if (loadedProject) {
-      setCompletion(getInterviewCompletionPercentage(loadedProject.id));
-    }
-  }, [params.projectId]);
+export default async function ProjectDetailPage({
+  params,
+}: ProjectDetailPageProps) {
+  const { projectId } = await params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select(
+      "id, name, description, industry, product_type, technical_level, main_goal, status, created_at, updated_at"
+    )
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   if (!project) {
     return (
@@ -53,9 +85,10 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle>Proyecto no encontrado</CardTitle>
               <CardDescription>
-                No existe un proyecto local con este identificador.
+                No existe un proyecto accesible con este identificador.
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               <Button asChild>
                 <Link href="/dashboard">Volver al dashboard</Link>
@@ -66,6 +99,8 @@ export default function ProjectDetailPage() {
       </main>
     );
   }
+
+  const projectRow = project as ProjectRow;
 
   return (
     <main className="min-h-screen bg-background">
@@ -78,38 +113,30 @@ export default function ProjectDetailPage() {
 
         <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <Badge variant="secondary">{project.status}</Badge>
-              <Badge variant="outline">{project.productType}</Badge>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{projectRow.status}</Badge>
+              <Badge variant="outline">{projectRow.product_type}</Badge>
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight">
-              {project.name}
+              {projectRow.name}
             </h1>
 
             <p className="mt-3 max-w-3xl text-muted-foreground">
-              {project.description}
+              {projectRow.description}
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button variant="outline" asChild>
-              <Link href={`/projects/${project.id}/documents`}>
-                Ver documentos
-              </Link>
+            <Button variant="outline" disabled>
+              Documentos: siguiente paso
             </Button>
 
-            <Button variant="outline" asChild>
-              <Link href={`/projects/${project.id}/analysis`}>
-                Ver análisis inicial
-              </Link>
+            <Button variant="outline" disabled>
+              Análisis: siguiente paso
             </Button>
 
-            <Button asChild>
-              <Link href={`/projects/${project.id}/interview`}>
-                Iniciar entrevista
-              </Link>
-            </Button>
+            <Button disabled>Entrevista: siguiente paso</Button>
           </div>
         </div>
 
@@ -119,14 +146,15 @@ export default function ProjectDetailPage() {
               <CardHeader>
                 <CardTitle>Información base</CardTitle>
                 <CardDescription>
-                  Datos iniciales usados para comenzar el descubrimiento.
+                  Datos iniciales guardados en Supabase.
                 </CardDescription>
               </CardHeader>
+
               <CardContent className="space-y-4 text-sm">
                 <div>
                   <p className="font-medium">Industria</p>
                   <p className="text-muted-foreground">
-                    {project.industry || "No definida"}
+                    {projectRow.industry || "No definida"}
                   </p>
                 </div>
 
@@ -135,7 +163,7 @@ export default function ProjectDetailPage() {
                 <div>
                   <p className="font-medium">Nivel técnico</p>
                   <p className="text-muted-foreground">
-                    {project.technicalLevel}
+                    {projectRow.technical_level}
                   </p>
                 </div>
 
@@ -144,7 +172,16 @@ export default function ProjectDetailPage() {
                 <div>
                   <p className="font-medium">Objetivo principal</p>
                   <p className="text-muted-foreground">
-                    {project.mainGoal || "No definido"}
+                    {projectRow.main_goal || "No definido"}
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <p className="font-medium">Creado</p>
+                  <p className="text-muted-foreground">
+                    {formatDate(projectRow.created_at)}
                   </p>
                 </div>
               </CardContent>
@@ -154,15 +191,15 @@ export default function ProjectDetailPage() {
               <CardHeader>
                 <CardTitle>Readiness inicial</CardTitle>
                 <CardDescription>
-                  Este puntaje será calculado con base en información
-                  confirmada, supuestos, riesgos y preguntas abiertas.
+                  El cálculo real se conectará cuando migremos entrevista,
+                  análisis y documentos a Supabase.
                 </CardDescription>
               </CardHeader>
+
               <CardContent className="space-y-3">
-                <Progress value={Math.max(12, completion)} />
+                <Progress value={12} />
                 <p className="text-sm text-muted-foreground">
-                  {Math.max(12, completion)}% — Proyecto creado
-                  {completion > 0 ? ", entrevista iniciada." : ", entrevista pendiente."}
+                  12% — Proyecto creado en Supabase, entrevista pendiente.
                 </p>
               </CardContent>
             </Card>
@@ -172,10 +209,11 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle>Paquete técnico planeado</CardTitle>
               <CardDescription>
-                Estos documentos se generarán desde el Project Model
-                estructurado.
+                Estos documentos se generarán desde el Project Model persistido
+                en Supabase.
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               <div className="grid gap-3">
                 {plannedDocuments.map((documentName) => (
