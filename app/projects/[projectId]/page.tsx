@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { createClient } from "@/lib/supabase/server";
 
 const plannedDocuments = [
   "PRODUCT_SPEC.md",
@@ -41,7 +41,6 @@ type ProjectRow = {
   main_goal: string;
   status: string;
   created_at: string;
-  updated_at: string;
 };
 
 function formatDate(value: string) {
@@ -68,7 +67,7 @@ export default async function ProjectDetailPage({
   const { data: project, error } = await supabase
     .from("projects")
     .select(
-      "id, name, description, industry, product_type, technical_level, main_goal, status, created_at, updated_at"
+      "id, name, description, industry, product_type, technical_level, main_goal, status, created_at"
     )
     .eq("id", projectId)
     .maybeSingle();
@@ -84,6 +83,7 @@ export default async function ProjectDetailPage({
           <Card>
             <CardHeader>
               <CardTitle>Proyecto no encontrado</CardTitle>
+
               <CardDescription>
                 No existe un proyecto accesible con este identificador.
               </CardDescription>
@@ -115,6 +115,7 @@ export default async function ProjectDetailPage({
           <div>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{projectRow.status}</Badge>
+
               <Badge variant="outline">{projectRow.product_type}</Badge>
             </div>
 
@@ -136,7 +137,11 @@ export default async function ProjectDetailPage({
               Análisis: siguiente paso
             </Button>
 
-            <Button disabled>Entrevista: siguiente paso</Button>
+            <Button asChild>
+              <Link href={`/projects/${projectRow.id}/interview`}>
+                Iniciar entrevista
+              </Link>
+            </Button>
           </div>
         </div>
 
@@ -145,6 +150,7 @@ export default async function ProjectDetailPage({
             <Card>
               <CardHeader>
                 <CardTitle>Información base</CardTitle>
+
                 <CardDescription>
                   Datos iniciales guardados en Supabase.
                 </CardDescription>
@@ -153,6 +159,7 @@ export default async function ProjectDetailPage({
               <CardContent className="space-y-4 text-sm">
                 <div>
                   <p className="font-medium">Industria</p>
+
                   <p className="text-muted-foreground">
                     {projectRow.industry || "No definida"}
                   </p>
@@ -162,6 +169,7 @@ export default async function ProjectDetailPage({
 
                 <div>
                   <p className="font-medium">Nivel técnico</p>
+
                   <p className="text-muted-foreground">
                     {projectRow.technical_level}
                   </p>
@@ -171,6 +179,7 @@ export default async function ProjectDetailPage({
 
                 <div>
                   <p className="font-medium">Objetivo principal</p>
+
                   <p className="text-muted-foreground">
                     {projectRow.main_goal || "No definido"}
                   </p>
@@ -180,6 +189,7 @@ export default async function ProjectDetailPage({
 
                 <div>
                   <p className="font-medium">Creado</p>
+
                   <p className="text-muted-foreground">
                     {formatDate(projectRow.created_at)}
                   </p>
@@ -190,16 +200,19 @@ export default async function ProjectDetailPage({
             <Card>
               <CardHeader>
                 <CardTitle>Readiness inicial</CardTitle>
+
                 <CardDescription>
-                  El cálculo real se conectará cuando migremos entrevista,
-                  análisis y documentos a Supabase.
+                  El cálculo real se conectará cuando migremos el análisis y los
+                  documentos a Supabase.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-3">
                 <Progress value={12} />
+
                 <p className="text-sm text-muted-foreground">
-                  12% — Proyecto creado en Supabase, entrevista pendiente.
+                  12% — Proyecto creado en Supabase. La entrevista ya está
+                  disponible.
                 </p>
               </CardContent>
             </Card>
@@ -208,6 +221,7 @@ export default async function ProjectDetailPage({
           <Card>
             <CardHeader>
               <CardTitle>Paquete técnico planeado</CardTitle>
+
               <CardDescription>
                 Estos documentos se generarán desde el Project Model persistido
                 en Supabase.
@@ -224,6 +238,7 @@ export default async function ProjectDetailPage({
                     <span className="text-sm font-medium">
                       {documentName}
                     </span>
+
                     <Badge variant="outline">Pendiente</Badge>
                   </div>
                 ))}
