@@ -15,6 +15,7 @@ import type { GeneratedArtifact } from "@/domain/artifacts/artifact";
 import { createClient } from "@/lib/supabase/server";
 
 import {
+  generateDomainModelAction,
   generateMvpScopeAction,
   generateProductSpecAction,
 } from "./actions";
@@ -47,7 +48,8 @@ type ArtifactRow = {
 
 type SupportedArtifactType =
   | "product_spec"
-  | "mvp_scope";
+  | "mvp_scope"
+  | "domain_model";
 
 type DocumentDefinition = {
   type: SupportedArtifactType;
@@ -70,6 +72,13 @@ const documentDefinitions: DocumentDefinition[] = [
     filename: "MVP_SCOPE.md",
     description:
       "Delimita la primera versión útil, el alcance incluido, los criterios de aceptación y los bloqueadores.",
+  },
+  {
+    type: "domain_model",
+    title: "Domain Model",
+    filename: "DOMAIN_MODEL.md",
+    description:
+      "Documenta el lenguaje ubicuo, las entidades detectadas, capacidades, límites candidatos, relaciones pendientes y reglas del dominio.",
   },
 ];
 
@@ -122,11 +131,15 @@ async function generateDocumentFormAction(
         ? await generateMvpScopeAction({
             projectId,
           })
-        : {
-            ok: false as const,
-            error:
-              "El tipo de documento seleccionado no es válido.",
-          };
+        : artifactType === "domain_model"
+          ? await generateDomainModelAction({
+              projectId,
+            })
+          : {
+              ok: false as const,
+              error:
+                "El tipo de documento seleccionado no es válido.",
+            };
 
   if (!result.ok) {
     redirect(
@@ -219,6 +232,7 @@ export default async function ProjectDocumentsPage({
     .in("type", [
       "product_spec",
       "mvp_scope",
+      "domain_model",
     ])
     .order("created_at", {
       ascending: true,
