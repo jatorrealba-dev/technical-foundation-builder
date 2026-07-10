@@ -11,6 +11,7 @@ import type {
 } from "@/domain/projects/project";
 import type { ProjectModel } from "@/domain/project-model/project-model";
 import { createClient } from "@/lib/supabase/server";
+import { generateDomainModelMarkdown } from "@/services/artifacts/generate-domain-model";
 import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
 import { generateProductSpecMarkdown } from "@/services/artifacts/generate-product-spec";
 
@@ -20,7 +21,8 @@ type GenerateDocumentInput = {
 
 type SupportedArtifactType =
   | "product_spec"
-  | "mvp_scope";
+  | "mvp_scope"
+  | "domain_model";
 
 type ArtifactDefinition = {
   type: SupportedArtifactType;
@@ -91,6 +93,13 @@ const mvpScopeDefinition: ArtifactDefinition = {
   title: "MVP Scope",
   filename: "MVP_SCOPE.md",
   generateContent: generateMvpScopeMarkdown,
+};
+
+const domainModelDefinition: ArtifactDefinition = {
+  type: "domain_model",
+  title: "Domain Model",
+  filename: "DOMAIN_MODEL.md",
+  generateContent: generateDomainModelMarkdown,
 };
 
 function mapProject(
@@ -299,5 +308,14 @@ export async function generateMvpScopeAction(
   return generateDocument(
     input,
     mvpScopeDefinition
+  );
+}
+
+export async function generateDomainModelAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    domainModelDefinition
   );
 }
