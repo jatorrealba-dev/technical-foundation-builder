@@ -1,12 +1,5 @@
-"use client";
-
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-import { useParams } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,9 +12,18 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { ProjectModel } from "@/domain/project-model/project-model";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/server";
 
 import { generateProjectModelAction } from "./actions";
+
+type ProjectAnalysisPageProps = {
+  params: Promise<{
+    projectId: string;
+  }>;
+  searchParams: Promise<{
+    error?: string | string[];
+  }>;
+};
 
 type ProjectRow = {
   id: string;
@@ -56,14 +58,6 @@ function mapProjectModelRow(
   };
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Ocurrió un error inesperado.";
-}
-
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("es", {
     dateStyle: "medium",
@@ -71,137 +65,70 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-export default function ProjectAnalysisPage() {
-  const params = useParams<{
-    projectId: string;
-  }>();
+async function generateProjectModelFormAction(
+  formData: FormData
+) {
+  "use server";
 
-  const projectId = params.projectId;
+  const projectId = String(
+    formData.get("projectId") ?? ""
+  ).trim();
 
-  const [project, setProject] =
-    useState<ProjectRow | null>(null);
-
-  const [model, setModel] =
-    useState<ProjectModel | null>(null);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isGenerating, setIsGenerating] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const loadPageData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const supabase = createClient();
-
-      const {
-        data: projectData,
-        error: projectError,
-      } = await supabase
-        .from("projects")
-        .select("id, name")
-        .eq("id", projectId)
-        .maybeSingle();
-
-      if (projectError) {
-        throw new Error(projectError.message);
-      }
-
-      if (!projectData) {
-        setProject(null);
-        setModel(null);
-        return;
-      }
-
-      const projectRow =
-        projectData as unknown as ProjectRow;
-
-      setProject(projectRow);
-
-      const {
-        data: modelData,
-        error: modelError,
-      } = await supabase
-        .from("project_models")
-        .select(
-          "project_id, status, requirements, assumptions, domain_entities, risks, open_questions, generated_at, updated_at"
-        )
-        .eq("project_id", projectId)
-        .maybeSingle();
-
-      if (modelError) {
-        throw new Error(modelError.message);
-      }
-
-      if (!modelData) {
-        setModel(null);
-        return;
-      }
-
-      const modelRow =
-        modelData as unknown as ProjectModelRow;
-
-      setModel(mapProjectModelRow(modelRow));
-    } catch (caughtError) {
-      setError(getErrorMessage(caughtError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    void loadPageData();
-  }, [loadPageData]);
-
-  async function handleGenerateModel() {
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const result =
-        await generateProjectModelAction({
-          projectId,
-        });
-
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-
-      await loadPageData();
-    } catch (caughtError) {
-      setError(getErrorMessage(caughtError));
-    } finally {
-      setIsGenerating(false);
-    }
+  if (!projectId) {
+    redirect("/dashboard");
   }
 
-  if (isLoading) {
-    return (
-      <main className="min-h-screen bg-background">
-        <section className="mx-auto w-full max-w-4xl px-6 py-10">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Cargando análisis
-              </CardTitle>
+  const result = await generateProjectModelAction({
+    projectId,
+  });
 
-              <CardDescription>
-                Consultando el proyecto y su Project Model
-                en Supabase.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </section>
-      </main>
+  if (!result.ok) {
+    redirect(
+      `/projects/${projectId}/analysis?error=${encodeURIComponent(
+        result.error
+      )}`
     );
   }
 
-  if (!project) {
+  redirect(`/projects/${projectId}/analysis`);
+}
+
+export default async function ProjectAnalysisPage({
+  params,
+  searchParams,
+}: ProjectAnalysisPageProps) {
+  const { projectId } = await params;
+  const resolvedSearchParams = await searchParams;
+
+  const errorParam = resolvedSearchParams.error;
+
+  const actionError = Array.isArray(errorParam)
+    ? errorParam[0]
+    : errorParam;
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    redirect("/login");
+  }
+
+  const { data: projectData, error: projectError } =
+    await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("id", projectId)
+      .maybeSingle();
+
+  if (projectError) {
+    throw new Error(projectError.message);
+  }
+
+  if (!projectData) {
     return (
       <main className="min-h-screen bg-background">
         <section className="mx-auto w-full max-w-4xl px-6 py-10">
@@ -228,6 +155,28 @@ export default function ProjectAnalysisPage() {
       </main>
     );
   }
+
+  const project =
+    projectData as unknown as ProjectRow;
+
+  const { data: modelData, error: modelError } =
+    await supabase
+      .from("project_models")
+      .select(
+        "project_id, status, requirements, assumptions, domain_entities, risks, open_questions, generated_at, updated_at"
+      )
+      .eq("project_id", projectId)
+      .maybeSingle();
+
+  if (modelError) {
+    throw new Error(modelError.message);
+  }
+
+  const model = modelData
+    ? mapProjectModelRow(
+        modelData as unknown as ProjectModelRow
+      )
+    : null;
 
   return (
     <main className="min-h-screen bg-background">
@@ -279,19 +228,22 @@ export default function ProjectAnalysisPage() {
             ) : null}
           </div>
 
-          <Button
-            onClick={handleGenerateModel}
-            disabled={isGenerating}
-          >
-            {isGenerating
-              ? "Generando..."
-              : model
+          <form action={generateProjectModelFormAction}>
+            <input
+              type="hidden"
+              name="projectId"
+              value={project.id}
+            />
+
+            <Button type="submit">
+              {model
                 ? "Regenerar análisis"
                 : "Generar análisis inicial"}
-          </Button>
+            </Button>
+          </form>
         </header>
 
-        {error ? (
+        {actionError ? (
           <Card className="mb-6 border-destructive">
             <CardHeader>
               <CardTitle className="text-destructive">
@@ -299,7 +251,7 @@ export default function ProjectAnalysisPage() {
               </CardTitle>
 
               <CardDescription>
-                {error}
+                {actionError}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -328,14 +280,17 @@ export default function ProjectAnalysisPage() {
                 </Link>
               </Button>
 
-              <Button
-                onClick={handleGenerateModel}
-                disabled={isGenerating}
-              >
-                {isGenerating
-                  ? "Generando..."
-                  : "Generar ahora"}
-              </Button>
+              <form action={generateProjectModelFormAction}>
+                <input
+                  type="hidden"
+                  name="projectId"
+                  value={project.id}
+                />
+
+                <Button type="submit">
+                  Generar ahora
+                </Button>
+              </form>
             </CardContent>
           </Card>
         ) : (

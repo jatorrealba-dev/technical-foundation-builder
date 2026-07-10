@@ -22,7 +22,10 @@ const allowedTechnicalLevels = [
   "advanced",
 ];
 
-function getFormValue(formData: FormData, key: string) {
+function getFormValue(
+  formData: FormData,
+  key: string
+): string {
   const value = formData.get(key);
 
   if (typeof value !== "string") {
@@ -32,7 +35,11 @@ function getFormValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function getSafeOption(value: string, allowedValues: string[], fallback: string) {
+function getSafeOption(
+  value: string,
+  allowedValues: string[],
+  fallback: string
+): string {
   if (allowedValues.includes(value)) {
     return value;
   }
@@ -40,10 +47,18 @@ function getSafeOption(value: string, allowedValues: string[], fallback: string)
   return fallback;
 }
 
-export async function createProjectAction(formData: FormData) {
+export async function createProjectAction(
+  formData: FormData
+) {
   const name = getFormValue(formData, "name");
-  const description = getFormValue(formData, "description");
-  const industry = getFormValue(formData, "industry");
+  const description = getFormValue(
+    formData,
+    "description"
+  );
+  const industry = getFormValue(
+    formData,
+    "industry"
+  );
 
   const productType = getSafeOption(
     getFormValue(formData, "productType"),
@@ -57,7 +72,10 @@ export async function createProjectAction(formData: FormData) {
     "non_technical"
   );
 
-  const mainGoal = getFormValue(formData, "mainGoal");
+  const mainGoal = getFormValue(
+    formData,
+    "mainGoal"
+  );
 
   if (!name) {
     redirect(
@@ -79,10 +97,15 @@ export async function createProjectAction(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    redirect("/login?error=Debes%20iniciar%20sesion.");
+    redirect(
+      "/login?error=Debes%20iniciar%20sesion."
+    );
   }
 
-  const { data: membership, error: membershipError } = await supabase
+  const {
+    data: membership,
+    error: membershipError,
+  } = await supabase
     .from("organization_members")
     .select("organization_id")
     .eq("user_id", user.id)
@@ -91,7 +114,9 @@ export async function createProjectAction(formData: FormData) {
 
   if (membershipError) {
     redirect(
-      `/projects/new?error=${encodeURIComponent(membershipError.message)}`
+      `/projects/new?error=${encodeURIComponent(
+        membershipError.message
+      )}`
     );
   }
 
@@ -99,10 +124,11 @@ export async function createProjectAction(formData: FormData) {
     redirect("/onboarding");
   }
 
-  const { data: project, error: projectError } = await supabase
+  const { error: projectError } = await supabase
     .from("projects")
     .insert({
-      organization_id: membership.organization_id,
+      organization_id:
+        membership.organization_id,
       owner_id: user.id,
       name,
       description,
@@ -111,12 +137,14 @@ export async function createProjectAction(formData: FormData) {
       technical_level: technicalLevel,
       main_goal: mainGoal,
       status: "draft",
-    })
-    .select("id")
-    .single();
+    });
 
   if (projectError) {
-    redirect(`/projects/new?error=${encodeURIComponent(projectError.message)}`);
+    redirect(
+      `/projects/new?error=${encodeURIComponent(
+        projectError.message
+      )}`
+    );
   }
 
   redirect("/dashboard");

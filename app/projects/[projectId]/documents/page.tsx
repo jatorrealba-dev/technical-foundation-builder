@@ -1,12 +1,5 @@
-"use client";
-
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-import { useParams } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { DownloadArtifactButton } from "@/components/artifacts/download-artifact-button";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +12,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { GeneratedArtifact } from "@/domain/artifacts/artifact";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/server";
 
 import { generateProductSpecAction } from "./actions";
+
+type ProjectDocumentsPageProps = {
+  params: Promise<{
+    projectId: string;
+  }>;
+  searchParams: Promise<{
+    error?: string | string[];
+  }>;
+};
 
 type ProjectRow = {
   id: string;
@@ -40,9 +42,7 @@ type ArtifactRow = {
   updated_at: string;
 };
 
-function mapArtifact(
-  row: ArtifactRow
-): GeneratedArtifact {
+function mapArtifact(row: ArtifactRow): GeneratedArtifact {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -63,175 +63,70 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
+async function generateProductSpecFormAction(
+  formData: FormData
+) {
+  "use server";
+
+  const projectId = String(
+    formData.get("projectId") ?? ""
+  ).trim();
+
+  if (!projectId) {
+    redirect("/dashboard");
   }
 
-  return "Ocurrió un error inesperado.";
+  const result = await generateProductSpecAction({
+    projectId,
+  });
+
+  if (!result.ok) {
+    redirect(
+      `/projects/${projectId}/documents?error=${encodeURIComponent(
+        result.error
+      )}`
+    );
+  }
+
+  redirect(`/projects/${projectId}/documents`);
 }
 
-export default function ProjectDocumentsPage() {
-  const params = useParams<{
-    projectId: string;
-  }>();
+export default async function ProjectDocumentsPage({
+  params,
+  searchParams,
+}: ProjectDocumentsPageProps) {
+  const { projectId } = await params;
+  const resolvedSearchParams = await searchParams;
 
-  const projectId = params.projectId;
+  const errorParam = resolvedSearchParams.error;
 
-  const [project, setProject] =
-    useState<ProjectRow | null>(null);
+  const actionError = Array.isArray(errorParam)
+    ? errorParam[0]
+    : errorParam;
 
-  const [productSpec, setProductSpec] =
-    useState<GeneratedArtifact | null>(null);
+  const supabase = await createClient();
 
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  const [isGenerating, setIsGenerating] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const loadPageData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const supabase = createClient();
-
-      const {
-        data: projectData,
-        error: projectError,
-      } = await supabase
-        .from("projects")
-        .select("id, name")
-        .eq("id", projectId)
-        .maybeSingle();
-
-      if (projectError) {
-        throw new Error(projectError.message);
-      }
-
-      if (!projectData) {
-        setProject(null);
-        setProductSpec(null);
-        return;
-      }
-
-      setProject(
-        projectData as unknown as ProjectRow
-      );
-
-      const {
-        data: artifactData,
-        error: artifactError,
-      } = await supabase
-        .from("artifacts")
-        .select(
-          "id, project_id, type, title, filename, format, content, created_at, updated_at"
-        )
-        .eq("project_id", projectId)
-        .eq("type", "product_spec")
-        .maybeSingle();
-
-      if (artifactError) {
-        throw new Error(artifactError.message);
-      }
-
-      if (!artifactData) {
-        setProductSpec(null);
-        return;
-      }
-
-      setProductSpec(
-        mapArtifact(
-          artifactData as unknown as ArtifactRow
-        )
-      );
-    } catch (caughtError) {
-      setError(getErrorMessage(caughtError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    void loadPageData();
-  }, [loadPageData]);
-
-  async function handleGenerateProductSpec() {
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const result =
-        await generateProductSpecAction({
-          projectId,
-        });
-
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-
-      setProductSpec(result.artifact);
-    } catch (caughtError) {
-      setError(getErrorMessage(caughtError));
-    } finally {
-      setIsGenerating(false);
-    }
+  if (userError || !user) {
+    redirect("/login");
   }
 
-  if (isLoading) {
-    return (
-      <main className="min-h-screen bg-background">
-        <section className="mx-auto w-full max-w-4xl px-6 py-10">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Cargando documentos
-              </CardTitle>
+  const { data: projectData, error: projectError } =
+    await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("id", projectId)
+      .maybeSingle();
 
-              <CardDescription>
-                Consultando el proyecto y sus artefactos
-                en Supabase.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </section>
-      </main>
-    );
+  if (projectError) {
+    throw new Error(projectError.message);
   }
 
-  if (error && !project) {
-    return (
-      <main className="min-h-screen bg-background">
-        <section className="mx-auto w-full max-w-4xl px-6 py-10">
-          <Card className="border-destructive">
-            <CardHeader>
-              <CardTitle className="text-destructive">
-                No se pudo cargar el proyecto
-              </CardTitle>
-
-              <CardDescription>
-                {error}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-              <Button asChild>
-                <Link href="/dashboard">
-                  Volver al dashboard
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-      </main>
-    );
-  }
-
-  if (!project) {
+  if (!projectData) {
     return (
       <main className="min-h-screen bg-background">
         <section className="mx-auto w-full max-w-4xl px-6 py-10">
@@ -258,6 +153,29 @@ export default function ProjectDocumentsPage() {
       </main>
     );
   }
+
+  const project =
+    projectData as unknown as ProjectRow;
+
+  const { data: artifactData, error: artifactError } =
+    await supabase
+      .from("artifacts")
+      .select(
+        "id, project_id, type, title, filename, format, content, created_at, updated_at"
+      )
+      .eq("project_id", projectId)
+      .eq("type", "product_spec")
+      .maybeSingle();
+
+  if (artifactError) {
+    throw new Error(artifactError.message);
+  }
+
+  const productSpec = artifactData
+    ? mapArtifact(
+        artifactData as unknown as ArtifactRow
+      )
+    : null;
 
   return (
     <main className="min-h-screen bg-background">
@@ -313,20 +231,23 @@ export default function ProjectDocumentsPage() {
               />
             ) : null}
 
-            <Button
-              onClick={handleGenerateProductSpec}
-              disabled={isGenerating}
-            >
-              {isGenerating
-                ? "Generando..."
-                : productSpec
+            <form action={generateProductSpecFormAction}>
+              <input
+                type="hidden"
+                name="projectId"
+                value={project.id}
+              />
+
+              <Button type="submit">
+                {productSpec
                   ? "Regenerar Product Spec"
                   : "Generar Product Spec"}
-            </Button>
+              </Button>
+            </form>
           </div>
         </header>
 
-        {error ? (
+        {actionError ? (
           <Card className="mb-6 border-destructive">
             <CardHeader>
               <CardTitle className="text-destructive">
@@ -334,7 +255,7 @@ export default function ProjectDocumentsPage() {
               </CardTitle>
 
               <CardDescription>
-                {error}
+                {actionError}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -371,14 +292,17 @@ export default function ProjectDocumentsPage() {
                 </Link>
               </Button>
 
-              <Button
-                onClick={handleGenerateProductSpec}
-                disabled={isGenerating}
-              >
-                {isGenerating
-                  ? "Generando..."
-                  : "Generar Product Spec"}
-              </Button>
+              <form action={generateProductSpecFormAction}>
+                <input
+                  type="hidden"
+                  name="projectId"
+                  value={project.id}
+                />
+
+                <Button type="submit">
+                  Generar Product Spec
+                </Button>
+              </form>
             </CardContent>
           </Card>
         ) : (
