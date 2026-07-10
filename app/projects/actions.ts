@@ -119,5 +119,5 @@ export async function createProjectAction(formData: FormData) {
     redirect(`/projects/new?error=${encodeURIComponent(projectError.message)}`);
   }
 
-  redirect(`/projects/${project.id}`);
+  redirect("/dashboard");
 }
