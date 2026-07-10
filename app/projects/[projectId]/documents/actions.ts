@@ -11,13 +11,28 @@ import type {
 } from "@/domain/projects/project";
 import type { ProjectModel } from "@/domain/project-model/project-model";
 import { createClient } from "@/lib/supabase/server";
+import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
 import { generateProductSpecMarkdown } from "@/services/artifacts/generate-product-spec";
 
-type GenerateProductSpecInput = {
+type GenerateDocumentInput = {
   projectId: string;
 };
 
-export type GenerateProductSpecResult =
+type SupportedArtifactType =
+  | "product_spec"
+  | "mvp_scope";
+
+type ArtifactDefinition = {
+  type: SupportedArtifactType;
+  title: string;
+  filename: string;
+  generateContent: (input: {
+    project: FoundationProject;
+    model: ProjectModel;
+  }) => string;
+};
+
+export type GenerateDocumentResult =
   | {
       ok: true;
       artifact: GeneratedArtifact;
@@ -64,7 +79,23 @@ type ArtifactRow = {
   updated_at: string;
 };
 
-function mapProject(row: ProjectRow): FoundationProject {
+const productSpecDefinition: ArtifactDefinition = {
+  type: "product_spec",
+  title: "Product Spec",
+  filename: "PRODUCT_SPEC.md",
+  generateContent: generateProductSpecMarkdown,
+};
+
+const mvpScopeDefinition: ArtifactDefinition = {
+  type: "mvp_scope",
+  title: "MVP Scope",
+  filename: "MVP_SCOPE.md",
+  generateContent: generateMvpScopeMarkdown,
+};
+
+function mapProject(
+  row: ProjectRow
+): FoundationProject {
   return {
     id: row.id,
     name: row.name,
@@ -79,7 +110,9 @@ function mapProject(row: ProjectRow): FoundationProject {
   };
 }
 
-function mapProjectModel(row: ProjectModelRow): ProjectModel {
+function mapProjectModel(
+  row: ProjectModelRow
+): ProjectModel {
   return {
     projectId: row.project_id,
     status: row.status,
@@ -93,7 +126,9 @@ function mapProjectModel(row: ProjectModelRow): ProjectModel {
   };
 }
 
-function mapArtifact(row: ArtifactRow): GeneratedArtifact {
+function mapArtifact(
+  row: ArtifactRow
+): GeneratedArtifact {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -107,15 +142,17 @@ function mapArtifact(row: ArtifactRow): GeneratedArtifact {
   };
 }
 
-export async function generateProductSpecAction(
-  input: GenerateProductSpecInput
-): Promise<GenerateProductSpecResult> {
+async function generateDocument(
+  input: GenerateDocumentInput,
+  definition: ArtifactDefinition
+): Promise<GenerateDocumentResult> {
   const projectId = input.projectId.trim();
 
   if (!projectId) {
     return {
       ok: false,
-      error: "El identificador del proyecto es obligatorio.",
+      error:
+        "El identificador del proyecto es obligatorio.",
     };
   }
 
@@ -129,11 +166,15 @@ export async function generateProductSpecAction(
   if (userError || !user) {
     return {
       ok: false,
-      error: "Debes iniciar sesión para generar documentos.",
+      error:
+        "Debes iniciar sesión para generar documentos.",
     };
   }
 
-  const { data: projectData, error: projectError } = await supabase
+  const {
+    data: projectData,
+    error: projectError,
+  } = await supabase
     .from("projects")
     .select(
       "id, name, description, industry, product_type, technical_level, main_goal, status, created_at, updated_at"
@@ -151,11 +192,15 @@ export async function generateProductSpecAction(
   if (!projectData) {
     return {
       ok: false,
-      error: "El proyecto no existe o no tienes acceso.",
+      error:
+        "El proyecto no existe o no tienes acceso.",
     };
   }
 
-  const { data: modelData, error: modelError } = await supabase
+  const {
+    data: modelData,
+    error: modelError,
+  } = await supabase
     .from("project_models")
     .select(
       "project_id, status, requirements, assumptions, domain_entities, risks, open_questions, generated_at, updated_at"
@@ -174,7 +219,7 @@ export async function generateProductSpecAction(
     return {
       ok: false,
       error:
-        "Primero debes generar el análisis inicial del proyecto antes de crear el Product Spec.",
+        "Primero debes generar el análisis inicial del proyecto antes de crear documentos.",
     };
   }
 
@@ -186,34 +231,36 @@ export async function generateProductSpecAction(
     modelData as unknown as ProjectModelRow
   );
 
-  const content = generateProductSpecMarkdown({
+  const content = definition.generateContent({
     project,
     model,
   });
 
   const now = new Date().toISOString();
 
-  const { data: artifactData, error: artifactError } =
-    await supabase
-      .from("artifacts")
-      .upsert(
-        {
-          project_id: projectId,
-          type: "product_spec",
-          title: "Product Spec",
-          filename: "PRODUCT_SPEC.md",
-          format: "markdown",
-          content,
-          updated_at: now,
-        },
-        {
-          onConflict: "project_id,type",
-        }
-      )
-      .select(
-        "id, project_id, type, title, filename, format, content, created_at, updated_at"
-      )
-      .single();
+  const {
+    data: artifactData,
+    error: artifactError,
+  } = await supabase
+    .from("artifacts")
+    .upsert(
+      {
+        project_id: projectId,
+        type: definition.type,
+        title: definition.title,
+        filename: definition.filename,
+        format: "markdown",
+        content,
+        updated_at: now,
+      },
+      {
+        onConflict: "project_id,type",
+      }
+    )
+    .select(
+      "id, project_id, type, title, filename, format, content, created_at, updated_at"
+    )
+    .single();
 
   if (artifactError) {
     return {
@@ -227,10 +274,30 @@ export async function generateProductSpecAction(
   );
 
   revalidatePath(`/projects/${projectId}`);
-  revalidatePath(`/projects/${projectId}/documents`);
+  revalidatePath(
+    `/projects/${projectId}/documents`
+  );
 
   return {
     ok: true,
     artifact,
   };
+}
+
+export async function generateProductSpecAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    productSpecDefinition
+  );
+}
+
+export async function generateMvpScopeAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    mvpScopeDefinition
+  );
 }
