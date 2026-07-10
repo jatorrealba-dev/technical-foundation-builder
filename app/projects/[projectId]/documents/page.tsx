@@ -14,7 +14,10 @@ import {
 import type { GeneratedArtifact } from "@/domain/artifacts/artifact";
 import { createClient } from "@/lib/supabase/server";
 
-import { generateProductSpecAction } from "./actions";
+import {
+  generateMvpScopeAction,
+  generateProductSpecAction,
+} from "./actions";
 
 type ProjectDocumentsPageProps = {
   params: Promise<{
@@ -42,7 +45,37 @@ type ArtifactRow = {
   updated_at: string;
 };
 
-function mapArtifact(row: ArtifactRow): GeneratedArtifact {
+type SupportedArtifactType =
+  | "product_spec"
+  | "mvp_scope";
+
+type DocumentDefinition = {
+  type: SupportedArtifactType;
+  title: string;
+  filename: string;
+  description: string;
+};
+
+const documentDefinitions: DocumentDefinition[] = [
+  {
+    type: "product_spec",
+    title: "Product Specification",
+    filename: "PRODUCT_SPEC.md",
+    description:
+      "Describe el producto, sus requisitos, entidades, supuestos, riesgos y preguntas abiertas.",
+  },
+  {
+    type: "mvp_scope",
+    title: "MVP Scope",
+    filename: "MVP_SCOPE.md",
+    description:
+      "Delimita la primera versión útil, el alcance incluido, los criterios de aceptación y los bloqueadores.",
+  },
+];
+
+function mapArtifact(
+  row: ArtifactRow
+): GeneratedArtifact {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -63,7 +96,7 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-async function generateProductSpecFormAction(
+async function generateDocumentFormAction(
   formData: FormData
 ) {
   "use server";
@@ -72,13 +105,28 @@ async function generateProductSpecFormAction(
     formData.get("projectId") ?? ""
   ).trim();
 
+  const artifactType = String(
+    formData.get("artifactType") ?? ""
+  ).trim();
+
   if (!projectId) {
     redirect("/dashboard");
   }
 
-  const result = await generateProductSpecAction({
-    projectId,
-  });
+  const result =
+    artifactType === "product_spec"
+      ? await generateProductSpecAction({
+          projectId,
+        })
+      : artifactType === "mvp_scope"
+        ? await generateMvpScopeAction({
+            projectId,
+          })
+        : {
+            ok: false as const,
+            error:
+              "El tipo de documento seleccionado no es válido.",
+          };
 
   if (!result.ok) {
     redirect(
@@ -115,12 +163,14 @@ export default async function ProjectDocumentsPage({
     redirect("/login");
   }
 
-  const { data: projectData, error: projectError } =
-    await supabase
-      .from("projects")
-      .select("id, name")
-      .eq("id", projectId)
-      .maybeSingle();
+  const {
+    data: projectData,
+    error: projectError,
+  } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("id", projectId)
+    .maybeSingle();
 
   if (projectError) {
     throw new Error(projectError.message);
@@ -157,25 +207,38 @@ export default async function ProjectDocumentsPage({
   const project =
     projectData as unknown as ProjectRow;
 
-  const { data: artifactData, error: artifactError } =
-    await supabase
-      .from("artifacts")
-      .select(
-        "id, project_id, type, title, filename, format, content, created_at, updated_at"
-      )
-      .eq("project_id", projectId)
-      .eq("type", "product_spec")
-      .maybeSingle();
+  const {
+    data: artifactRows,
+    error: artifactsError,
+  } = await supabase
+    .from("artifacts")
+    .select(
+      "id, project_id, type, title, filename, format, content, created_at, updated_at"
+    )
+    .eq("project_id", projectId)
+    .in("type", [
+      "product_spec",
+      "mvp_scope",
+    ])
+    .order("created_at", {
+      ascending: true,
+    });
 
-  if (artifactError) {
-    throw new Error(artifactError.message);
+  if (artifactsError) {
+    throw new Error(artifactsError.message);
   }
 
-  const productSpec = artifactData
-    ? mapArtifact(
-        artifactData as unknown as ArtifactRow
+  const artifacts = (
+    (artifactRows ?? []) as unknown as ArtifactRow[]
+  ).map(mapArtifact);
+
+  const generatedCount =
+    documentDefinitions.filter((definition) =>
+      artifacts.some(
+        (artifact) =>
+          artifact.type === definition.type
       )
-    : null;
+    ).length;
 
   return (
     <main className="min-h-screen bg-background">
@@ -188,63 +251,36 @@ export default async function ProjectDocumentsPage({
           </Button>
         </div>
 
-        <header className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">
-                Documentos
-              </Badge>
+        <header className="mb-10">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">
+              Documentos
+            </Badge>
 
-              <Badge
-                variant={
-                  productSpec
-                    ? "default"
-                    : "outline"
-                }
-              >
-                {productSpec
-                  ? "PRODUCT_SPEC.md generado"
-                  : "Pendiente"}
-              </Badge>
-            </div>
-
-            <h1 className="text-4xl font-bold tracking-tight">
-              Documentos del proyecto
-            </h1>
-
-            <p className="mt-2 font-medium">
-              {project.name}
-            </p>
-
-            <p className="mt-3 max-w-3xl text-muted-foreground">
-              Genera documentos técnicos desde el Project
-              Model estructurado y persistido en Supabase.
-            </p>
+            <Badge
+              variant={
+                generatedCount > 0
+                  ? "default"
+                  : "outline"
+              }
+            >
+              {generatedCount} de{" "}
+              {documentDefinitions.length} generados
+            </Badge>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            {productSpec ? (
-              <DownloadArtifactButton
-                filename={productSpec.filename}
-                content={productSpec.content}
-                label="Descargar PRODUCT_SPEC.md"
-              />
-            ) : null}
+          <h1 className="text-4xl font-bold tracking-tight">
+            Documentos del proyecto
+          </h1>
 
-            <form action={generateProductSpecFormAction}>
-              <input
-                type="hidden"
-                name="projectId"
-                value={project.id}
-              />
+          <p className="mt-2 font-medium">
+            {project.name}
+          </p>
 
-              <Button type="submit">
-                {productSpec
-                  ? "Regenerar Product Spec"
-                  : "Generar Product Spec"}
-              </Button>
-            </form>
-          </div>
+          <p className="mt-3 max-w-3xl text-muted-foreground">
+            Genera artefactos técnicos desde el Project
+            Model estructurado y persistido en Supabase.
+          </p>
         </header>
 
         {actionError ? (
@@ -261,82 +297,108 @@ export default async function ProjectDocumentsPage({
           </Card>
         ) : null}
 
-        {!productSpec ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                No hay documentos generados
-              </CardTitle>
+        <div className="grid gap-6">
+          {documentDefinitions.map((definition) => {
+            const artifact = artifacts.find(
+              (item) =>
+                item.type === definition.type
+            );
 
-              <CardDescription>
-                Primero completa la entrevista y genera el
-                análisis inicial. El Product Spec se construirá
-                desde el Project Model guardado en Supabase.
-              </CardDescription>
-            </CardHeader>
+            return (
+              <Card key={definition.type}>
+                <CardHeader>
+                  <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+                    <div>
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant={
+                            artifact
+                              ? "default"
+                              : "outline"
+                          }
+                        >
+                          {artifact
+                            ? "Generado"
+                            : "Pendiente"}
+                        </Badge>
 
-            <CardContent className="flex flex-col gap-3 sm:flex-row">
-              <Button variant="outline" asChild>
-                <Link
-                  href={`/projects/${project.id}/interview`}
-                >
-                  Ir a entrevista
-                </Link>
-              </Button>
+                        <Badge variant="outline">
+                          markdown
+                        </Badge>
+                      </div>
 
-              <Button variant="outline" asChild>
-                <Link
-                  href={`/projects/${project.id}/analysis`}
-                >
-                  Ver análisis inicial
-                </Link>
-              </Button>
+                      <CardTitle>
+                        {definition.filename}
+                      </CardTitle>
 
-              <form action={generateProductSpecFormAction}>
-                <input
-                  type="hidden"
-                  name="projectId"
-                  value={project.id}
-                />
+                      <CardDescription className="mt-2 max-w-2xl">
+                        {definition.description}
+                      </CardDescription>
 
-                <Button type="submit">
-                  Generar Product Spec
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                  <div>
-                    <CardTitle>
-                      {productSpec.filename}
-                    </CardTitle>
+                      {artifact ? (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          Última actualización:{" "}
+                          {formatDate(
+                            artifact.updatedAt
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
 
-                    <CardDescription>
-                      Última actualización:{" "}
-                      {formatDate(
-                        productSpec.updatedAt
-                      )}
-                    </CardDescription>
+                    <div className="flex flex-wrap gap-3">
+                      {artifact ? (
+                        <DownloadArtifactButton
+                          filename={artifact.filename}
+                          content={artifact.content}
+                          label={`Descargar ${artifact.filename}`}
+                        />
+                      ) : null}
+
+                      <form
+                        action={
+                          generateDocumentFormAction
+                        }
+                      >
+                        <input
+                          type="hidden"
+                          name="projectId"
+                          value={project.id}
+                        />
+
+                        <input
+                          type="hidden"
+                          name="artifactType"
+                          value={definition.type}
+                        />
+
+                        <Button type="submit">
+                          {artifact
+                            ? `Regenerar ${definition.filename}`
+                            : `Generar ${definition.filename}`}
+                        </Button>
+                      </form>
+                    </div>
                   </div>
+                </CardHeader>
 
-                  <Badge variant="outline">
-                    {productSpec.format}
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-5 text-sm leading-7">
-                  {productSpec.content}
-                </pre>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                <CardContent>
+                  {artifact ? (
+                    <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-5 text-sm leading-7">
+                      {artifact.content}
+                    </pre>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-6">
+                      <p className="text-sm text-muted-foreground">
+                        Este documento todavía no ha sido
+                        generado.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </section>
     </main>
   );
