@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 
+import { DownloadArtifactButton } from "@/components/artifacts/download-artifact-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -303,16 +304,26 @@ export default function ProjectDocumentsPage() {
             </p>
           </div>
 
-          <Button
-            onClick={handleGenerateProductSpec}
-            disabled={isGenerating}
-          >
-            {isGenerating
-              ? "Generando..."
-              : productSpec
-                ? "Regenerar Product Spec"
-                : "Generar Product Spec"}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            {productSpec ? (
+              <DownloadArtifactButton
+                filename={productSpec.filename}
+                content={productSpec.content}
+                label="Descargar PRODUCT_SPEC.md"
+              />
+            ) : null}
+
+            <Button
+              onClick={handleGenerateProductSpec}
+              disabled={isGenerating}
+            >
+              {isGenerating
+                ? "Generando..."
+                : productSpec
+                  ? "Regenerar Product Spec"
+                  : "Generar Product Spec"}
+            </Button>
+          </div>
         </header>
 
         {error ? (
