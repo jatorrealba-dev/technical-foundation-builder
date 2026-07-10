@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { initialInterviewQuestions } from "@/domain/interviews/interview";
 import { createClient } from "@/lib/supabase/server";
 
 const plannedDocuments = [
@@ -43,11 +44,45 @@ type ProjectRow = {
   created_at: string;
 };
 
+type InterviewSessionRow = {
+  id: string;
+  status: string;
+  current_stage: string;
+};
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function getInterviewStatusLabel(status: string) {
+  switch (status) {
+    case "in_progress":
+      return "En progreso";
+
+    case "completed":
+      return "Completada";
+
+    default:
+      return "No iniciada";
+  }
+}
+
+function getInterviewButtonLabel(input: {
+  status: string;
+  answeredCount: number;
+}) {
+  if (input.status === "completed") {
+    return "Revisar entrevista";
+  }
+
+  if (input.answeredCount > 0) {
+    return "Continuar entrevista";
+  }
+
+  return "Iniciar entrevista";
 }
 
 export default async function ProjectDetailPage({
@@ -64,7 +99,7 @@ export default async function ProjectDetailPage({
     redirect("/login");
   }
 
-  const { data: project, error } = await supabase
+  const { data: project, error: projectError } = await supabase
     .from("projects")
     .select(
       "id, name, description, industry, product_type, technical_level, main_goal, status, created_at"
@@ -72,8 +107,8 @@ export default async function ProjectDetailPage({
     .eq("id", projectId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
+  if (projectError) {
+    throw new Error(projectError.message);
   }
 
   if (!project) {
@@ -102,21 +137,79 @@ export default async function ProjectDetailPage({
 
   const projectRow = project as ProjectRow;
 
+  const { data: sessionData, error: sessionError } = await supabase
+    .from("interview_sessions")
+    .select("id, status, current_stage")
+    .eq("project_id", projectRow.id)
+    .maybeSingle();
+
+  if (sessionError) {
+    throw new Error(sessionError.message);
+  }
+
+  const interviewSession =
+    sessionData as InterviewSessionRow | null;
+
+  let answeredCount = 0;
+
+  if (interviewSession) {
+    const { count, error: answersError } = await supabase
+      .from("interview_answers")
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
+      .eq("interview_session_id", interviewSession.id);
+
+    if (answersError) {
+      throw new Error(answersError.message);
+    }
+
+    answeredCount = count ?? 0;
+  }
+
+  const totalQuestions = initialInterviewQuestions.length;
+
+  const interviewCompletion =
+    totalQuestions === 0
+      ? 0
+      : Math.min(
+          100,
+          Math.round((answeredCount / totalQuestions) * 100)
+        );
+
+  const interviewStatus =
+    interviewSession?.status ?? "not_started";
+
+  const interviewStatusLabel =
+    getInterviewStatusLabel(interviewStatus);
+
+  const interviewButtonLabel = getInterviewButtonLabel({
+    status: interviewStatus,
+    answeredCount,
+  });
+
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto w-full max-w-6xl px-6 py-10">
         <div className="mb-8">
           <Button variant="ghost" asChild>
-            <Link href="/dashboard">← Volver al dashboard</Link>
+            <Link href="/dashboard">
+              ← Volver al dashboard
+            </Link>
           </Button>
         </div>
 
         <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{projectRow.status}</Badge>
+              <Badge variant="secondary">
+                {projectRow.status}
+              </Badge>
 
-              <Badge variant="outline">{projectRow.product_type}</Badge>
+              <Badge variant="outline">
+                {projectRow.product_type}
+              </Badge>
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight">
@@ -139,7 +232,7 @@ export default async function ProjectDetailPage({
 
             <Button asChild>
               <Link href={`/projects/${projectRow.id}/interview`}>
-                Iniciar entrevista
+                {interviewButtonLabel}
               </Link>
             </Button>
           </div>
@@ -168,7 +261,9 @@ export default async function ProjectDetailPage({
                 <Separator />
 
                 <div>
-                  <p className="font-medium">Nivel técnico</p>
+                  <p className="font-medium">
+                    Nivel técnico
+                  </p>
 
                   <p className="text-muted-foreground">
                     {projectRow.technical_level}
@@ -178,7 +273,9 @@ export default async function ProjectDetailPage({
                 <Separator />
 
                 <div>
-                  <p className="font-medium">Objetivo principal</p>
+                  <p className="font-medium">
+                    Objetivo principal
+                  </p>
 
                   <p className="text-muted-foreground">
                     {projectRow.main_goal || "No definido"}
@@ -199,32 +296,65 @@ export default async function ProjectDetailPage({
 
             <Card>
               <CardHeader>
-                <CardTitle>Readiness inicial</CardTitle>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>
+                      Progreso de entrevista
+                    </CardTitle>
 
-                <CardDescription>
-                  El cálculo real se conectará cuando migremos el análisis y los
-                  documentos a Supabase.
-                </CardDescription>
+                    <CardDescription className="mt-2">
+                      Avance real calculado desde las respuestas
+                      guardadas en Supabase.
+                    </CardDescription>
+                  </div>
+
+                  <Badge
+                    variant={
+                      interviewStatus === "completed"
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {interviewStatusLabel}
+                  </Badge>
+                </div>
               </CardHeader>
 
-              <CardContent className="space-y-3">
-                <Progress value={12} />
+              <CardContent className="space-y-4">
+                <Progress value={interviewCompletion} />
 
-                <p className="text-sm text-muted-foreground">
-                  12% — Proyecto creado en Supabase. La entrevista ya está
-                  disponible.
-                </p>
+                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                  <p>
+                    {interviewCompletion}% completado
+                  </p>
+
+                  <p>
+                    {answeredCount} de {totalQuestions} preguntas
+                    respondidas.
+                  </p>
+                </div>
+
+                {interviewSession ? (
+                  <p className="text-sm text-muted-foreground">
+                    Etapa actual:{" "}
+                    <span className="font-medium text-foreground">
+                      {interviewSession.current_stage}
+                    </span>
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Paquete técnico planeado</CardTitle>
+              <CardTitle>
+                Paquete técnico planeado
+              </CardTitle>
 
               <CardDescription>
-                Estos documentos se generarán desde el Project Model persistido
-                en Supabase.
+                Estos documentos se generarán desde el Project
+                Model persistido en Supabase.
               </CardDescription>
             </CardHeader>
 
@@ -239,7 +369,9 @@ export default async function ProjectDetailPage({
                       {documentName}
                     </span>
 
-                    <Badge variant="outline">Pendiente</Badge>
+                    <Badge variant="outline">
+                      Pendiente
+                    </Badge>
                   </div>
                 ))}
               </div>
