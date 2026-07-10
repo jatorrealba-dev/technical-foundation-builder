@@ -55,14 +55,19 @@ type ProjectModelSummaryRow = {
   generated_at: string;
 };
 
-function formatDate(value: string) {
+type ArtifactSummaryRow = {
+  filename: string;
+  updated_at: string;
+};
+
+function formatDate(value: string): string {
   return new Intl.DateTimeFormat("es", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
-function getInterviewStatusLabel(status: string) {
+function getInterviewStatusLabel(status: string): string {
   switch (status) {
     case "in_progress":
       return "En progreso";
@@ -78,7 +83,7 @@ function getInterviewStatusLabel(status: string) {
 function getInterviewButtonLabel(input: {
   status: string;
   answeredCount: number;
-}) {
+}): string {
   if (input.status === "completed") {
     return "Revisar entrevista";
   }
@@ -98,9 +103,10 @@ export default async function ProjectDetailPage({
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (userError || !user) {
     redirect("/login");
   }
 
@@ -131,7 +137,9 @@ export default async function ProjectDetailPage({
 
             <CardContent>
               <Button asChild>
-                <Link href="/dashboard">Volver al dashboard</Link>
+                <Link href="/dashboard">
+                  Volver al dashboard
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -140,7 +148,7 @@ export default async function ProjectDetailPage({
     );
   }
 
-  const projectRow = project as ProjectRow;
+  const projectRow = project as unknown as ProjectRow;
 
   const { data: sessionData, error: sessionError } = await supabase
     .from("interview_sessions")
@@ -153,7 +161,7 @@ export default async function ProjectDetailPage({
   }
 
   const interviewSession =
-    sessionData as InterviewSessionRow | null;
+    sessionData as unknown as InterviewSessionRow | null;
 
   let answeredCount = 0;
 
@@ -185,7 +193,22 @@ export default async function ProjectDetailPage({
   }
 
   const projectModel =
-    projectModelData as ProjectModelSummaryRow | null;
+    projectModelData as unknown as ProjectModelSummaryRow | null;
+
+  const { data: productSpecData, error: productSpecError } =
+    await supabase
+      .from("artifacts")
+      .select("filename, updated_at")
+      .eq("project_id", projectRow.id)
+      .eq("type", "product_spec")
+      .maybeSingle();
+
+  if (productSpecError) {
+    throw new Error(productSpecError.message);
+  }
+
+  const productSpec =
+    productSpecData as unknown as ArtifactSummaryRow | null;
 
   const totalQuestions = initialInterviewQuestions.length;
 
@@ -211,6 +234,12 @@ export default async function ProjectDetailPage({
   const analysisButtonLabel = projectModel
     ? "Revisar análisis"
     : "Generar análisis";
+
+  const documentsButtonLabel = !projectModel
+    ? "Documentos: requiere análisis"
+    : productSpec
+      ? "Revisar documentos"
+      : "Generar documentos";
 
   return (
     <main className="min-h-screen bg-background">
@@ -245,9 +274,17 @@ export default async function ProjectDetailPage({
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button variant="outline" disabled>
-              Documentos: siguiente paso
-            </Button>
+            {projectModel ? (
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${projectRow.id}/documents`}>
+                  {documentsButtonLabel}
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                {documentsButtonLabel}
+              </Button>
+            )}
 
             <Button variant="outline" asChild>
               <Link href={`/projects/${projectRow.id}/analysis`}>
@@ -276,7 +313,9 @@ export default async function ProjectDetailPage({
 
               <CardContent className="space-y-4 text-sm">
                 <div>
-                  <p className="font-medium">Industria</p>
+                  <p className="font-medium">
+                    Industria
+                  </p>
 
                   <p className="text-muted-foreground">
                     {projectRow.industry || "No definida"}
@@ -310,7 +349,9 @@ export default async function ProjectDetailPage({
                 <Separator />
 
                 <div>
-                  <p className="font-medium">Creado</p>
+                  <p className="font-medium">
+                    Creado
+                  </p>
 
                   <p className="text-muted-foreground">
                     {formatDate(projectRow.created_at)}
@@ -385,7 +426,9 @@ export default async function ProjectDetailPage({
                   </div>
 
                   <Badge
-                    variant={projectModel ? "default" : "outline"}
+                    variant={
+                      projectModel ? "default" : "outline"
+                    }
                   >
                     {projectModel ? "Generado" : "Pendiente"}
                   </Badge>
@@ -405,6 +448,50 @@ export default async function ProjectDetailPage({
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>
+                      Estado de documentos
+                    </CardTitle>
+
+                    <CardDescription className="mt-2">
+                      Artefactos técnicos generados desde el
+                      Project Model.
+                    </CardDescription>
+                  </div>
+
+                  <Badge
+                    variant={
+                      productSpec ? "default" : "outline"
+                    }
+                  >
+                    {productSpec
+                      ? "Product Spec generado"
+                      : "Pendiente"}
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {productSpec ? (
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <p>{productSpec.filename}</p>
+
+                    <p>
+                      Última actualización:{" "}
+                      {formatDate(productSpec.updated_at)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Todavía no se ha generado el Product Spec.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           <Card>
@@ -414,27 +501,37 @@ export default async function ProjectDetailPage({
               </CardTitle>
 
               <CardDescription>
-                Estos documentos se generarán desde el Project
+                Documentos que se generarán desde el Project
                 Model persistido en Supabase.
               </CardDescription>
             </CardHeader>
 
             <CardContent>
               <div className="grid gap-3">
-                {plannedDocuments.map((documentName) => (
-                  <div
-                    key={documentName}
-                    className="flex items-center justify-between rounded-lg border px-4 py-3"
-                  >
-                    <span className="text-sm font-medium">
-                      {documentName}
-                    </span>
+                {plannedDocuments.map((documentName) => {
+                  const generated =
+                    documentName === "PRODUCT_SPEC.md" &&
+                    Boolean(productSpec);
 
-                    <Badge variant="outline">
-                      Pendiente
-                    </Badge>
-                  </div>
-                ))}
+                  return (
+                    <div
+                      key={documentName}
+                      className="flex items-center justify-between rounded-lg border px-4 py-3"
+                    >
+                      <span className="text-sm font-medium">
+                        {documentName}
+                      </span>
+
+                      <Badge
+                        variant={
+                          generated ? "default" : "outline"
+                        }
+                      >
+                        {generated ? "Generado" : "Pendiente"}
+                      </Badge>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
