@@ -22,6 +22,7 @@ import {
   generateMvpScopeAction,
   generateProductSpecAction,
   generateSecurityAction,
+  generateVerticalSlicePlanAction,
 } from "./actions";
 
 type ProjectDocumentsPageProps = {
@@ -57,7 +58,8 @@ type SupportedArtifactType =
   | "architecture"
   | "data_model"
   | "security"
-  | "backlog";
+  | "backlog"
+  | "vertical_slice_plan";
 
 type DocumentDefinition = {
   type: SupportedArtifactType;
@@ -115,6 +117,13 @@ const documentDefinitions: DocumentDefinition[] = [
     filename: "BACKLOG.md",
     description:
       "Convierte requisitos, entidades, riesgos, supuestos y preguntas abiertas en trabajo priorizado, trazable y verificable.",
+  },
+  {
+    type: "vertical_slice_plan",
+    title: "Vertical Slice Plan",
+    filename: "VERTICAL_SLICE_PLAN.md",
+    description:
+      "Define el primer flujo completo que atraviesa interfaz, aplicación, dominio, persistencia, seguridad, pruebas y despliegue.",
   },
 ];
 
@@ -185,11 +194,15 @@ async function generateDocumentFormAction(
                   ? await generateBacklogAction({
                       projectId,
                     })
-                  : {
-                      ok: false as const,
-                      error:
-                        "El tipo de documento seleccionado no es válido.",
-                    };
+                  : artifactType === "vertical_slice_plan"
+                    ? await generateVerticalSlicePlanAction({
+                        projectId,
+                      })
+                    : {
+                        ok: false as const,
+                        error:
+                          "El tipo de documento seleccionado no es válido.",
+                      };
 
   if (!result.ok) {
     redirect(
@@ -287,6 +300,7 @@ export default async function ProjectDocumentsPage({
       "data_model",
       "security",
       "backlog",
+      "vertical_slice_plan",
     ])
     .order("created_at", {
       ascending: true,

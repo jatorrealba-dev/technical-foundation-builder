@@ -18,6 +18,7 @@ import { generateDomainModelMarkdown } from "@/services/artifacts/generate-domai
 import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
 import { generateProductSpecMarkdown } from "@/services/artifacts/generate-product-spec";
 import { generateSecurityMarkdown } from "@/services/artifacts/generate-security";
+import { generateVerticalSlicePlanMarkdown } from "@/services/artifacts/generate-vertical-slice-plan";
 
 type GenerateDocumentInput = {
   projectId: string;
@@ -30,7 +31,8 @@ type SupportedArtifactType =
   | "architecture"
   | "data_model"
   | "security"
-  | "backlog";
+  | "backlog"
+  | "vertical_slice_plan";
 
 type ArtifactDefinition = {
   type: SupportedArtifactType;
@@ -136,6 +138,13 @@ const backlogDefinition: ArtifactDefinition = {
   title: "Product and Technical Backlog",
   filename: "BACKLOG.md",
   generateContent: generateBacklogMarkdown,
+};
+
+const verticalSlicePlanDefinition: ArtifactDefinition = {
+  type: "vertical_slice_plan",
+  title: "Vertical Slice Plan",
+  filename: "VERTICAL_SLICE_PLAN.md",
+  generateContent: generateVerticalSlicePlanMarkdown,
 };
 
 function mapProject(row: ProjectRow): FoundationProject {
@@ -387,5 +396,14 @@ export async function generateBacklogAction(
   return generateDocument(
     input,
     backlogDefinition
+  );
+}
+
+export async function generateVerticalSlicePlanAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    verticalSlicePlanDefinition
   );
 }
