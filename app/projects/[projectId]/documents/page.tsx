@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { DownloadArtifactButton } from "@/components/artifacts/download-artifact-button";
+import { DownloadPackageButton } from "@/components/artifacts/download-package-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -299,6 +300,13 @@ export default async function ProjectDocumentsPage({
   const packageIsComplete =
     generatedCount === artifactCatalog.length;
 
+  const downloadableArtifacts = artifacts.map(
+    (artifact) => ({
+      filename: artifact.filename,
+      content: artifact.content,
+    })
+  );
+
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -343,19 +351,36 @@ export default async function ProjectDocumentsPage({
             </p>
           </div>
 
-          <form action={generatePackageFormAction}>
-            <input
-              type="hidden"
-              name="projectId"
-              value={project.id}
-            />
+          <div className="flex flex-col items-start gap-3 sm:flex-row">
+            {packageIsComplete ? (
+              <DownloadPackageButton
+                projectName={project.name}
+                artifacts={downloadableArtifacts}
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled
+              >
+                Descargar paquete ZIP
+              </Button>
+            )}
 
-            <Button type="submit" size="lg">
-              {packageIsComplete
-                ? "Regenerar paquete completo"
-                : "Generar paquete completo"}
-            </Button>
-          </form>
+            <form action={generatePackageFormAction}>
+              <input
+                type="hidden"
+                name="projectId"
+                value={project.id}
+              />
+
+              <Button type="submit" size="lg">
+                {packageIsComplete
+                  ? "Regenerar paquete completo"
+                  : "Generar paquete completo"}
+              </Button>
+            </form>
+          </div>
         </header>
 
         {actionError ? (
@@ -375,12 +400,12 @@ export default async function ProjectDocumentsPage({
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>
-              Generación del paquete
+              Generación y exportación del paquete
             </CardTitle>
 
             <CardDescription>
-              La operación completa genera o actualiza los ocho
-              documentos utilizando el mismo Project Model.
+              Genera, actualiza y descarga los ocho documentos
+              técnicos del proyecto.
             </CardDescription>
           </CardHeader>
 
@@ -392,6 +417,11 @@ export default async function ProjectDocumentsPage({
                   ? "Paquete completo"
                   : `${generatedCount} de ${artifactCatalog.length} documentos`}
               </span>
+            </p>
+
+            <p>
+              La descarga ZIP se habilita cuando los ocho
+              documentos están disponibles.
             </p>
 
             <p>
