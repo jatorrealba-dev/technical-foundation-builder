@@ -12,49 +12,13 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import {
+  artifactCatalog,
+  artifactTypes,
+} from "@/domain/artifacts/artifact-catalog";
 import type { ArtifactType } from "@/domain/artifacts/artifact";
 import { initialInterviewQuestions } from "@/domain/interviews/interview";
 import { createClient } from "@/lib/supabase/server";
-
-type PlannedDocument = {
-  type: ArtifactType;
-  filename: string;
-};
-
-const plannedDocuments: PlannedDocument[] = [
-  {
-    type: "product_spec",
-    filename: "PRODUCT_SPEC.md",
-  },
-  {
-    type: "mvp_scope",
-    filename: "MVP_SCOPE.md",
-  },
-  {
-    type: "domain_model",
-    filename: "DOMAIN_MODEL.md",
-  },
-  {
-    type: "architecture",
-    filename: "ARCHITECTURE.md",
-  },
-  {
-    type: "data_model",
-    filename: "DATA_MODEL.md",
-  },
-  {
-    type: "security",
-    filename: "SECURITY.md",
-  },
-  {
-    type: "backlog",
-    filename: "BACKLOG.md",
-  },
-  {
-    type: "vertical_slice_plan",
-    filename: "VERTICAL_SLICE_PLAN.md",
-  },
-];
 
 type ProjectDetailPageProps = {
   params: Promise<{
@@ -246,10 +210,7 @@ export default async function ProjectDetailPage({
       .from("artifacts")
       .select("type, filename, updated_at")
       .eq("project_id", projectRow.id)
-      .in(
-        "type",
-        plannedDocuments.map((document) => document.type)
-      )
+      .in("type", [...artifactTypes])
       .order("updated_at", {
         ascending: false,
       });
@@ -267,11 +228,11 @@ export default async function ProjectDetailPage({
   );
 
   const generatedDocumentsCount =
-    plannedDocuments.filter((document) =>
-      generatedArtifactTypes.has(document.type)
+    artifactCatalog.filter((artifact) =>
+      generatedArtifactTypes.has(artifact.type)
     ).length;
 
-  const totalDocumentsCount = plannedDocuments.length;
+  const totalDocumentsCount = artifactCatalog.length;
 
   const documentsCompletion =
     totalDocumentsCount === 0
@@ -587,24 +548,24 @@ export default async function ProjectDetailPage({
               </CardTitle>
 
               <CardDescription>
-                Estado real de los ocho documentos generados desde
-                el Project Model persistido en Supabase.
+                Estado real de los documentos generados desde el
+                Project Model persistido en Supabase.
               </CardDescription>
             </CardHeader>
 
             <CardContent>
               <div className="grid gap-3">
-                {plannedDocuments.map((document) => {
+                {artifactCatalog.map((artifact) => {
                   const generated =
-                    generatedArtifactTypes.has(document.type);
+                    generatedArtifactTypes.has(artifact.type);
 
                   return (
                     <div
-                      key={document.type}
+                      key={artifact.type}
                       className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                     >
                       <span className="font-mono text-sm">
-                        {document.filename}
+                        {artifact.filename}
                       </span>
 
                       <Badge

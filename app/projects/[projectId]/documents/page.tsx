@@ -11,7 +11,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { GeneratedArtifact } from "@/domain/artifacts/artifact";
+import {
+  artifactCatalog,
+  artifactTypes,
+  isArtifactType,
+} from "@/domain/artifacts/artifact-catalog";
+import type {
+  ArtifactType,
+  GeneratedArtifact,
+} from "@/domain/artifacts/artifact";
 import { createClient } from "@/lib/supabase/server";
 
 import {
@@ -23,6 +31,7 @@ import {
   generateProductSpecAction,
   generateSecurityAction,
   generateVerticalSlicePlanAction,
+  type GenerateDocumentResult,
 } from "./actions";
 
 type ProjectDocumentsPageProps = {
@@ -51,82 +60,6 @@ type ArtifactRow = {
   updated_at: string;
 };
 
-type SupportedArtifactType =
-  | "product_spec"
-  | "mvp_scope"
-  | "domain_model"
-  | "architecture"
-  | "data_model"
-  | "security"
-  | "backlog"
-  | "vertical_slice_plan";
-
-type DocumentDefinition = {
-  type: SupportedArtifactType;
-  title: string;
-  filename: string;
-  description: string;
-};
-
-const documentDefinitions: DocumentDefinition[] = [
-  {
-    type: "product_spec",
-    title: "Product Specification",
-    filename: "PRODUCT_SPEC.md",
-    description:
-      "Describe el producto, sus requisitos, entidades, supuestos, riesgos y preguntas abiertas.",
-  },
-  {
-    type: "mvp_scope",
-    title: "MVP Scope",
-    filename: "MVP_SCOPE.md",
-    description:
-      "Delimita la primera versión útil, el alcance incluido, los criterios de aceptación y los bloqueadores.",
-  },
-  {
-    type: "domain_model",
-    title: "Domain Model",
-    filename: "DOMAIN_MODEL.md",
-    description:
-      "Documenta el lenguaje ubicuo, las entidades detectadas, capacidades, límites candidatos, relaciones pendientes y reglas del dominio.",
-  },
-  {
-    type: "architecture",
-    title: "Software Architecture",
-    filename: "ARCHITECTURE.md",
-    description:
-      "Propone el estilo arquitectónico, las capas, módulos candidatos, responsabilidades de datos, seguridad, integraciones y estrategia de evolución.",
-  },
-  {
-    type: "data_model",
-    title: "Data Model",
-    filename: "DATA_MODEL.md",
-    description:
-      "Propone entidades persistentes, tablas candidatas, relaciones pendientes, restricciones de integridad, tenancy, índices y estrategia de migraciones.",
-  },
-  {
-    type: "security",
-    title: "Security",
-    filename: "SECURITY.md",
-    description:
-      "Define requisitos detectados, autenticación, autorización, clasificación de datos, amenazas, controles, auditoría, privacidad y pruebas de seguridad.",
-  },
-  {
-    type: "backlog",
-    title: "Product and Technical Backlog",
-    filename: "BACKLOG.md",
-    description:
-      "Convierte requisitos, entidades, riesgos, supuestos y preguntas abiertas en trabajo priorizado, trazable y verificable.",
-  },
-  {
-    type: "vertical_slice_plan",
-    title: "Vertical Slice Plan",
-    filename: "VERTICAL_SLICE_PLAN.md",
-    description:
-      "Define el primer flujo completo que atraviesa interfaz, aplicación, dominio, persistencia, seguridad, pruebas y despliegue.",
-  },
-];
-
 function mapArtifact(row: ArtifactRow): GeneratedArtifact {
   return {
     id: row.id,
@@ -148,6 +81,53 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+async function executeGenerateAction(input: {
+  artifactType: ArtifactType;
+  projectId: string;
+}): Promise<GenerateDocumentResult> {
+  switch (input.artifactType) {
+    case "product_spec":
+      return generateProductSpecAction({
+        projectId: input.projectId,
+      });
+
+    case "mvp_scope":
+      return generateMvpScopeAction({
+        projectId: input.projectId,
+      });
+
+    case "domain_model":
+      return generateDomainModelAction({
+        projectId: input.projectId,
+      });
+
+    case "architecture":
+      return generateArchitectureAction({
+        projectId: input.projectId,
+      });
+
+    case "data_model":
+      return generateDataModelAction({
+        projectId: input.projectId,
+      });
+
+    case "security":
+      return generateSecurityAction({
+        projectId: input.projectId,
+      });
+
+    case "backlog":
+      return generateBacklogAction({
+        projectId: input.projectId,
+      });
+
+    case "vertical_slice_plan":
+      return generateVerticalSlicePlanAction({
+        projectId: input.projectId,
+      });
+  }
+}
+
 async function generateDocumentFormAction(
   formData: FormData
 ) {
@@ -157,7 +137,7 @@ async function generateDocumentFormAction(
     formData.get("projectId") ?? ""
   ).trim();
 
-  const artifactType = String(
+  const artifactTypeValue = String(
     formData.get("artifactType") ?? ""
   ).trim();
 
@@ -165,44 +145,18 @@ async function generateDocumentFormAction(
     redirect("/dashboard");
   }
 
-  const result =
-    artifactType === "product_spec"
-      ? await generateProductSpecAction({
-          projectId,
-        })
-      : artifactType === "mvp_scope"
-        ? await generateMvpScopeAction({
-            projectId,
-          })
-        : artifactType === "domain_model"
-          ? await generateDomainModelAction({
-              projectId,
-            })
-          : artifactType === "architecture"
-            ? await generateArchitectureAction({
-                projectId,
-              })
-            : artifactType === "data_model"
-              ? await generateDataModelAction({
-                  projectId,
-                })
-              : artifactType === "security"
-                ? await generateSecurityAction({
-                    projectId,
-                  })
-                : artifactType === "backlog"
-                  ? await generateBacklogAction({
-                      projectId,
-                    })
-                  : artifactType === "vertical_slice_plan"
-                    ? await generateVerticalSlicePlanAction({
-                        projectId,
-                      })
-                    : {
-                        ok: false as const,
-                        error:
-                          "El tipo de documento seleccionado no es válido.",
-                      };
+  if (!isArtifactType(artifactTypeValue)) {
+    redirect(
+      `/projects/${projectId}/documents?error=${encodeURIComponent(
+        "El tipo de documento seleccionado no es válido."
+      )}`
+    );
+  }
+
+  const result = await executeGenerateAction({
+    artifactType: artifactTypeValue,
+    projectId,
+  });
 
   if (!result.ok) {
     redirect(
@@ -292,16 +246,7 @@ export default async function ProjectDocumentsPage({
       "id, project_id, type, title, filename, format, content, created_at, updated_at"
     )
     .eq("project_id", projectId)
-    .in("type", [
-      "product_spec",
-      "mvp_scope",
-      "domain_model",
-      "architecture",
-      "data_model",
-      "security",
-      "backlog",
-      "vertical_slice_plan",
-    ])
+    .in("type", [...artifactTypes])
     .order("created_at", {
       ascending: true,
     });
@@ -315,7 +260,7 @@ export default async function ProjectDocumentsPage({
   ).map(mapArtifact);
 
   const generatedCount =
-    documentDefinitions.filter((definition) =>
+    artifactCatalog.filter((definition) =>
       artifacts.some(
         (artifact) =>
           artifact.type === definition.type
@@ -347,7 +292,7 @@ export default async function ProjectDocumentsPage({
               }
             >
               {generatedCount} de{" "}
-              {documentDefinitions.length} generados
+              {artifactCatalog.length} generados
             </Badge>
           </div>
 
@@ -380,7 +325,7 @@ export default async function ProjectDocumentsPage({
         ) : null}
 
         <div className="grid gap-6">
-          {documentDefinitions.map((definition) => {
+          {artifactCatalog.map((definition) => {
             const artifact = artifacts.find(
               (item) =>
                 item.type === definition.type

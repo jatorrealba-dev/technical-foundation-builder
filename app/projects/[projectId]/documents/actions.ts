@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 
-import type { GeneratedArtifact } from "@/domain/artifacts/artifact";
+import {
+  getArtifactDefinition,
+} from "@/domain/artifacts/artifact-catalog";
+import type {
+  ArtifactType,
+  GeneratedArtifact,
+} from "@/domain/artifacts/artifact";
 import type {
   FoundationProject,
   ProductType,
@@ -24,25 +30,10 @@ type GenerateDocumentInput = {
   projectId: string;
 };
 
-type SupportedArtifactType =
-  | "product_spec"
-  | "mvp_scope"
-  | "domain_model"
-  | "architecture"
-  | "data_model"
-  | "security"
-  | "backlog"
-  | "vertical_slice_plan";
-
-type ArtifactDefinition = {
-  type: SupportedArtifactType;
-  title: string;
-  filename: string;
-  generateContent: (input: {
-    project: FoundationProject;
-    model: ProjectModel;
-  }) => string;
-};
+type ArtifactGenerator = (input: {
+  project: FoundationProject;
+  model: ProjectModel;
+}) => string;
 
 export type GenerateDocumentResult =
   | {
@@ -91,60 +82,19 @@ type ArtifactRow = {
   updated_at: string;
 };
 
-const productSpecDefinition: ArtifactDefinition = {
-  type: "product_spec",
-  title: "Product Spec",
-  filename: "PRODUCT_SPEC.md",
-  generateContent: generateProductSpecMarkdown,
-};
-
-const mvpScopeDefinition: ArtifactDefinition = {
-  type: "mvp_scope",
-  title: "MVP Scope",
-  filename: "MVP_SCOPE.md",
-  generateContent: generateMvpScopeMarkdown,
-};
-
-const domainModelDefinition: ArtifactDefinition = {
-  type: "domain_model",
-  title: "Domain Model",
-  filename: "DOMAIN_MODEL.md",
-  generateContent: generateDomainModelMarkdown,
-};
-
-const architectureDefinition: ArtifactDefinition = {
-  type: "architecture",
-  title: "Software Architecture",
-  filename: "ARCHITECTURE.md",
-  generateContent: generateArchitectureMarkdown,
-};
-
-const dataModelDefinition: ArtifactDefinition = {
-  type: "data_model",
-  title: "Data Model",
-  filename: "DATA_MODEL.md",
-  generateContent: generateDataModelMarkdown,
-};
-
-const securityDefinition: ArtifactDefinition = {
-  type: "security",
-  title: "Security",
-  filename: "SECURITY.md",
-  generateContent: generateSecurityMarkdown,
-};
-
-const backlogDefinition: ArtifactDefinition = {
-  type: "backlog",
-  title: "Product and Technical Backlog",
-  filename: "BACKLOG.md",
-  generateContent: generateBacklogMarkdown,
-};
-
-const verticalSlicePlanDefinition: ArtifactDefinition = {
-  type: "vertical_slice_plan",
-  title: "Vertical Slice Plan",
-  filename: "VERTICAL_SLICE_PLAN.md",
-  generateContent: generateVerticalSlicePlanMarkdown,
+const artifactGenerators: Record<
+  ArtifactType,
+  ArtifactGenerator
+> = {
+  product_spec: generateProductSpecMarkdown,
+  mvp_scope: generateMvpScopeMarkdown,
+  domain_model: generateDomainModelMarkdown,
+  architecture: generateArchitectureMarkdown,
+  data_model: generateDataModelMarkdown,
+  security: generateSecurityMarkdown,
+  backlog: generateBacklogMarkdown,
+  vertical_slice_plan:
+    generateVerticalSlicePlanMarkdown,
 };
 
 function mapProject(row: ProjectRow): FoundationProject {
@@ -196,7 +146,7 @@ function mapArtifact(
 
 async function generateDocument(
   input: GenerateDocumentInput,
-  definition: ArtifactDefinition
+  artifactType: ArtifactType
 ): Promise<GenerateDocumentResult> {
   const projectId = input.projectId.trim();
 
@@ -207,6 +157,12 @@ async function generateDocument(
         "El identificador del proyecto es obligatorio.",
     };
   }
+
+  const definition =
+    getArtifactDefinition(artifactType);
+
+  const generateContent =
+    artifactGenerators[artifactType];
 
   const supabase = await createClient();
 
@@ -283,7 +239,7 @@ async function generateDocument(
     modelData as unknown as ProjectModelRow
   );
 
-  const content = definition.generateContent({
+  const content = generateContent({
     project,
     model,
   });
@@ -341,7 +297,7 @@ export async function generateProductSpecAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    productSpecDefinition
+    "product_spec"
   );
 }
 
@@ -350,7 +306,7 @@ export async function generateMvpScopeAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    mvpScopeDefinition
+    "mvp_scope"
   );
 }
 
@@ -359,7 +315,7 @@ export async function generateDomainModelAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    domainModelDefinition
+    "domain_model"
   );
 }
 
@@ -368,7 +324,7 @@ export async function generateArchitectureAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    architectureDefinition
+    "architecture"
   );
 }
 
@@ -377,7 +333,7 @@ export async function generateDataModelAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    dataModelDefinition
+    "data_model"
   );
 }
 
@@ -386,7 +342,7 @@ export async function generateSecurityAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    securityDefinition
+    "security"
   );
 }
 
@@ -395,7 +351,7 @@ export async function generateBacklogAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    backlogDefinition
+    "backlog"
   );
 }
 
@@ -404,6 +360,6 @@ export async function generateVerticalSlicePlanAction(
 ): Promise<GenerateDocumentResult> {
   return generateDocument(
     input,
-    verticalSlicePlanDefinition
+    "vertical_slice_plan"
   );
 }
