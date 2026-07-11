@@ -20,6 +20,7 @@ import {
   generateDomainModelAction,
   generateMvpScopeAction,
   generateProductSpecAction,
+  generateSecurityAction,
 } from "./actions";
 
 type ProjectDocumentsPageProps = {
@@ -53,7 +54,8 @@ type SupportedArtifactType =
   | "mvp_scope"
   | "domain_model"
   | "architecture"
-  | "data_model";
+  | "data_model"
+  | "security";
 
 type DocumentDefinition = {
   type: SupportedArtifactType;
@@ -97,6 +99,13 @@ const documentDefinitions: DocumentDefinition[] = [
     filename: "DATA_MODEL.md",
     description:
       "Propone entidades persistentes, tablas candidatas, relaciones pendientes, restricciones de integridad, tenancy, índices y estrategia de migraciones.",
+  },
+  {
+    type: "security",
+    title: "Security",
+    filename: "SECURITY.md",
+    description:
+      "Define requisitos detectados, autenticación, autorización, clasificación de datos, amenazas, controles, auditoría, privacidad y pruebas de seguridad.",
   },
 ];
 
@@ -159,11 +168,15 @@ async function generateDocumentFormAction(
               ? await generateDataModelAction({
                   projectId,
                 })
-              : {
-                  ok: false as const,
-                  error:
-                    "El tipo de documento seleccionado no es válido.",
-                };
+              : artifactType === "security"
+                ? await generateSecurityAction({
+                    projectId,
+                  })
+                : {
+                    ok: false as const,
+                    error:
+                      "El tipo de documento seleccionado no es válido.",
+                  };
 
   if (!result.ok) {
     redirect(
@@ -259,6 +272,7 @@ export default async function ProjectDocumentsPage({
       "domain_model",
       "architecture",
       "data_model",
+      "security",
     ])
     .order("created_at", {
       ascending: true,

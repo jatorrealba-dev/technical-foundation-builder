@@ -16,6 +16,7 @@ import { generateDataModelMarkdown } from "@/services/artifacts/generate-data-mo
 import { generateDomainModelMarkdown } from "@/services/artifacts/generate-domain-model";
 import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
 import { generateProductSpecMarkdown } from "@/services/artifacts/generate-product-spec";
+import { generateSecurityMarkdown } from "@/services/artifacts/generate-security";
 
 type GenerateDocumentInput = {
   projectId: string;
@@ -26,7 +27,8 @@ type SupportedArtifactType =
   | "mvp_scope"
   | "domain_model"
   | "architecture"
-  | "data_model";
+  | "data_model"
+  | "security";
 
 type ArtifactDefinition = {
   type: SupportedArtifactType;
@@ -118,6 +120,13 @@ const dataModelDefinition: ArtifactDefinition = {
   title: "Data Model",
   filename: "DATA_MODEL.md",
   generateContent: generateDataModelMarkdown,
+};
+
+const securityDefinition: ArtifactDefinition = {
+  type: "security",
+  title: "Security",
+  filename: "SECURITY.md",
+  generateContent: generateSecurityMarkdown,
 };
 
 function mapProject(row: ProjectRow): FoundationProject {
@@ -351,5 +360,14 @@ export async function generateDataModelAction(
   return generateDocument(
     input,
     dataModelDefinition
+  );
+}
+
+export async function generateSecurityAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    securityDefinition
   );
 }
