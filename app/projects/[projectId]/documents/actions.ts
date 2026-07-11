@@ -11,6 +11,7 @@ import type {
 } from "@/domain/projects/project";
 import type { ProjectModel } from "@/domain/project-model/project-model";
 import { createClient } from "@/lib/supabase/server";
+import { generateArchitectureMarkdown } from "@/services/artifacts/generate-architecture";
 import { generateDomainModelMarkdown } from "@/services/artifacts/generate-domain-model";
 import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
 import { generateProductSpecMarkdown } from "@/services/artifacts/generate-product-spec";
@@ -22,7 +23,8 @@ type GenerateDocumentInput = {
 type SupportedArtifactType =
   | "product_spec"
   | "mvp_scope"
-  | "domain_model";
+  | "domain_model"
+  | "architecture";
 
 type ArtifactDefinition = {
   type: SupportedArtifactType;
@@ -102,9 +104,14 @@ const domainModelDefinition: ArtifactDefinition = {
   generateContent: generateDomainModelMarkdown,
 };
 
-function mapProject(
-  row: ProjectRow
-): FoundationProject {
+const architectureDefinition: ArtifactDefinition = {
+  type: "architecture",
+  title: "Software Architecture",
+  filename: "ARCHITECTURE.md",
+  generateContent: generateArchitectureMarkdown,
+};
+
+function mapProject(row: ProjectRow): FoundationProject {
   return {
     id: row.id,
     name: row.name,
@@ -317,5 +324,14 @@ export async function generateDomainModelAction(
   return generateDocument(
     input,
     domainModelDefinition
+  );
+}
+
+export async function generateArchitectureAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    architectureDefinition
   );
 }

@@ -15,6 +15,7 @@ import type { GeneratedArtifact } from "@/domain/artifacts/artifact";
 import { createClient } from "@/lib/supabase/server";
 
 import {
+  generateArchitectureAction,
   generateDomainModelAction,
   generateMvpScopeAction,
   generateProductSpecAction,
@@ -49,7 +50,8 @@ type ArtifactRow = {
 type SupportedArtifactType =
   | "product_spec"
   | "mvp_scope"
-  | "domain_model";
+  | "domain_model"
+  | "architecture";
 
 type DocumentDefinition = {
   type: SupportedArtifactType;
@@ -80,11 +82,16 @@ const documentDefinitions: DocumentDefinition[] = [
     description:
       "Documenta el lenguaje ubicuo, las entidades detectadas, capacidades, límites candidatos, relaciones pendientes y reglas del dominio.",
   },
+  {
+    type: "architecture",
+    title: "Software Architecture",
+    filename: "ARCHITECTURE.md",
+    description:
+      "Propone el estilo arquitectónico, las capas, módulos candidatos, responsabilidades de datos, seguridad, integraciones y estrategia de evolución.",
+  },
 ];
 
-function mapArtifact(
-  row: ArtifactRow
-): GeneratedArtifact {
+function mapArtifact(row: ArtifactRow): GeneratedArtifact {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -135,11 +142,15 @@ async function generateDocumentFormAction(
           ? await generateDomainModelAction({
               projectId,
             })
-          : {
-              ok: false as const,
-              error:
-                "El tipo de documento seleccionado no es válido.",
-            };
+          : artifactType === "architecture"
+            ? await generateArchitectureAction({
+                projectId,
+              })
+            : {
+                ok: false as const,
+                error:
+                  "El tipo de documento seleccionado no es válido.",
+              };
 
   if (!result.ok) {
     redirect(
@@ -233,6 +244,7 @@ export default async function ProjectDocumentsPage({
       "product_spec",
       "mvp_scope",
       "domain_model",
+      "architecture",
     ])
     .order("created_at", {
       ascending: true,
