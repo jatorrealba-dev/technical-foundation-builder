@@ -12,18 +12,48 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import type { ArtifactType } from "@/domain/artifacts/artifact";
 import { initialInterviewQuestions } from "@/domain/interviews/interview";
 import { createClient } from "@/lib/supabase/server";
 
-const plannedDocuments = [
-  "PRODUCT_SPEC.md",
-  "MVP_SCOPE.md",
-  "DOMAIN_MODEL.md",
-  "ARCHITECTURE.md",
-  "DATA_MODEL.md",
-  "SECURITY.md",
-  "BACKLOG.md",
-  "VERTICAL_SLICE_PLAN.md",
+type PlannedDocument = {
+  type: ArtifactType;
+  filename: string;
+};
+
+const plannedDocuments: PlannedDocument[] = [
+  {
+    type: "product_spec",
+    filename: "PRODUCT_SPEC.md",
+  },
+  {
+    type: "mvp_scope",
+    filename: "MVP_SCOPE.md",
+  },
+  {
+    type: "domain_model",
+    filename: "DOMAIN_MODEL.md",
+  },
+  {
+    type: "architecture",
+    filename: "ARCHITECTURE.md",
+  },
+  {
+    type: "data_model",
+    filename: "DATA_MODEL.md",
+  },
+  {
+    type: "security",
+    filename: "SECURITY.md",
+  },
+  {
+    type: "backlog",
+    filename: "BACKLOG.md",
+  },
+  {
+    type: "vertical_slice_plan",
+    filename: "VERTICAL_SLICE_PLAN.md",
+  },
 ];
 
 type ProjectDetailPageProps = {
@@ -56,6 +86,7 @@ type ProjectModelSummaryRow = {
 };
 
 type ArtifactSummaryRow = {
+  type: ArtifactType;
   filename: string;
   updated_at: string;
 };
@@ -93,6 +124,21 @@ function getInterviewButtonLabel(input: {
   }
 
   return "Iniciar entrevista";
+}
+
+function getDocumentsStatusLabel(input: {
+  generatedCount: number;
+  totalCount: number;
+}): string {
+  if (input.generatedCount === 0) {
+    return "Pendiente";
+  }
+
+  if (input.generatedCount === input.totalCount) {
+    return "Paquete completo";
+  }
+
+  return `${input.generatedCount} de ${input.totalCount} generados`;
 }
 
 export default async function ProjectDetailPage({
@@ -195,20 +241,46 @@ export default async function ProjectDetailPage({
   const projectModel =
     projectModelData as unknown as ProjectModelSummaryRow | null;
 
-  const { data: productSpecData, error: productSpecError } =
+  const { data: artifactsData, error: artifactsError } =
     await supabase
       .from("artifacts")
-      .select("filename, updated_at")
+      .select("type, filename, updated_at")
       .eq("project_id", projectRow.id)
-      .eq("type", "product_spec")
-      .maybeSingle();
+      .in(
+        "type",
+        plannedDocuments.map((document) => document.type)
+      )
+      .order("updated_at", {
+        ascending: false,
+      });
 
-  if (productSpecError) {
-    throw new Error(productSpecError.message);
+  if (artifactsError) {
+    throw new Error(artifactsError.message);
   }
 
-  const productSpec =
-    productSpecData as unknown as ArtifactSummaryRow | null;
+  const artifacts = (
+    (artifactsData ?? []) as unknown as ArtifactSummaryRow[]
+  );
+
+  const generatedArtifactTypes = new Set(
+    artifacts.map((artifact) => artifact.type)
+  );
+
+  const generatedDocumentsCount =
+    plannedDocuments.filter((document) =>
+      generatedArtifactTypes.has(document.type)
+    ).length;
+
+  const totalDocumentsCount = plannedDocuments.length;
+
+  const documentsCompletion =
+    totalDocumentsCount === 0
+      ? 0
+      : Math.round(
+          (generatedDocumentsCount / totalDocumentsCount) * 100
+        );
+
+  const latestArtifact = artifacts[0] ?? null;
 
   const totalQuestions = initialInterviewQuestions.length;
 
@@ -237,9 +309,14 @@ export default async function ProjectDetailPage({
 
   const documentsButtonLabel = !projectModel
     ? "Documentos: requiere análisis"
-    : productSpec
+    : generatedDocumentsCount > 0
       ? "Revisar documentos"
       : "Generar documentos";
+
+  const documentsStatusLabel = getDocumentsStatusLabel({
+    generatedCount: generatedDocumentsCount,
+    totalCount: totalDocumentsCount,
+  });
 
   return (
     <main className="min-h-screen bg-background">
@@ -458,38 +535,47 @@ export default async function ProjectDetailPage({
                     </CardTitle>
 
                     <CardDescription className="mt-2">
-                      Artefactos técnicos generados desde el
-                      Project Model.
+                      Progreso real del paquete técnico persistido
+                      en Supabase.
                     </CardDescription>
                   </div>
 
                   <Badge
                     variant={
-                      productSpec ? "default" : "outline"
+                      generatedDocumentsCount > 0
+                        ? "default"
+                        : "outline"
                     }
                   >
-                    {productSpec
-                      ? "Product Spec generado"
-                      : "Pendiente"}
+                    {documentsStatusLabel}
                   </Badge>
                 </div>
               </CardHeader>
 
-              <CardContent>
-                {productSpec ? (
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p>{productSpec.filename}</p>
+              <CardContent className="space-y-4">
+                <Progress value={documentsCompletion} />
 
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    {generatedDocumentsCount} de{" "}
+                    {totalDocumentsCount} documentos generados.
+                  </p>
+
+                  <p>
+                    {documentsCompletion}% del paquete completo.
+                  </p>
+
+                  {latestArtifact ? (
                     <p>
                       Última actualización:{" "}
-                      {formatDate(productSpec.updated_at)}
+                      {formatDate(latestArtifact.updated_at)}
                     </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Todavía no se ha generado el Product Spec.
-                  </p>
-                )}
+                  ) : (
+                    <p>
+                      Todavía no se ha generado ningún documento.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -497,41 +583,60 @@ export default async function ProjectDetailPage({
           <Card>
             <CardHeader>
               <CardTitle>
-                Paquete técnico planeado
+                Paquete técnico
               </CardTitle>
 
               <CardDescription>
-                Documentos que se generarán desde el Project
-                Model persistido en Supabase.
+                Estado real de los ocho documentos generados desde
+                el Project Model persistido en Supabase.
               </CardDescription>
             </CardHeader>
 
             <CardContent>
               <div className="grid gap-3">
-                {plannedDocuments.map((documentName) => {
+                {plannedDocuments.map((document) => {
                   const generated =
-                    documentName === "PRODUCT_SPEC.md" &&
-                    Boolean(productSpec);
+                    generatedArtifactTypes.has(document.type);
 
                   return (
                     <div
-                      key={documentName}
-                      className="flex items-center justify-between rounded-lg border px-4 py-3"
+                      key={document.type}
+                      className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                     >
-                      <span className="text-sm font-medium">
-                        {documentName}
+                      <span className="font-mono text-sm">
+                        {document.filename}
                       </span>
 
                       <Badge
                         variant={
-                          generated ? "default" : "outline"
+                          generated
+                            ? "default"
+                            : "outline"
                         }
                       >
-                        {generated ? "Generado" : "Pendiente"}
+                        {generated
+                          ? "Generado"
+                          : "Pendiente"}
                       </Badge>
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="mt-6">
+                {projectModel ? (
+                  <Button className="w-full" asChild>
+                    <Link href={`/projects/${projectRow.id}/documents`}>
+                      {generatedDocumentsCount > 0
+                        ? "Revisar paquete técnico"
+                        : "Generar paquete técnico"}
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button className="w-full" disabled>
+                    Genera primero el análisis
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
