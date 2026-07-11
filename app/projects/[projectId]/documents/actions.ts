@@ -12,6 +12,7 @@ import type {
 import type { ProjectModel } from "@/domain/project-model/project-model";
 import { createClient } from "@/lib/supabase/server";
 import { generateArchitectureMarkdown } from "@/services/artifacts/generate-architecture";
+import { generateBacklogMarkdown } from "@/services/artifacts/generate-backlog";
 import { generateDataModelMarkdown } from "@/services/artifacts/generate-data-model";
 import { generateDomainModelMarkdown } from "@/services/artifacts/generate-domain-model";
 import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
@@ -28,7 +29,8 @@ type SupportedArtifactType =
   | "domain_model"
   | "architecture"
   | "data_model"
-  | "security";
+  | "security"
+  | "backlog";
 
 type ArtifactDefinition = {
   type: SupportedArtifactType;
@@ -127,6 +129,13 @@ const securityDefinition: ArtifactDefinition = {
   title: "Security",
   filename: "SECURITY.md",
   generateContent: generateSecurityMarkdown,
+};
+
+const backlogDefinition: ArtifactDefinition = {
+  type: "backlog",
+  title: "Product and Technical Backlog",
+  filename: "BACKLOG.md",
+  generateContent: generateBacklogMarkdown,
 };
 
 function mapProject(row: ProjectRow): FoundationProject {
@@ -369,5 +378,14 @@ export async function generateSecurityAction(
   return generateDocument(
     input,
     securityDefinition
+  );
+}
+
+export async function generateBacklogAction(
+  input: GenerateDocumentInput
+): Promise<GenerateDocumentResult> {
+  return generateDocument(
+    input,
+    backlogDefinition
   );
 }

@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import {
   generateArchitectureAction,
+  generateBacklogAction,
   generateDataModelAction,
   generateDomainModelAction,
   generateMvpScopeAction,
@@ -55,7 +56,8 @@ type SupportedArtifactType =
   | "domain_model"
   | "architecture"
   | "data_model"
-  | "security";
+  | "security"
+  | "backlog";
 
 type DocumentDefinition = {
   type: SupportedArtifactType;
@@ -106,6 +108,13 @@ const documentDefinitions: DocumentDefinition[] = [
     filename: "SECURITY.md",
     description:
       "Define requisitos detectados, autenticación, autorización, clasificación de datos, amenazas, controles, auditoría, privacidad y pruebas de seguridad.",
+  },
+  {
+    type: "backlog",
+    title: "Product and Technical Backlog",
+    filename: "BACKLOG.md",
+    description:
+      "Convierte requisitos, entidades, riesgos, supuestos y preguntas abiertas en trabajo priorizado, trazable y verificable.",
   },
 ];
 
@@ -172,11 +181,15 @@ async function generateDocumentFormAction(
                 ? await generateSecurityAction({
                     projectId,
                   })
-                : {
-                    ok: false as const,
-                    error:
-                      "El tipo de documento seleccionado no es válido.",
-                  };
+                : artifactType === "backlog"
+                  ? await generateBacklogAction({
+                      projectId,
+                    })
+                  : {
+                      ok: false as const,
+                      error:
+                        "El tipo de documento seleccionado no es válido.",
+                    };
 
   if (!result.ok) {
     redirect(
@@ -273,6 +286,7 @@ export default async function ProjectDocumentsPage({
       "architecture",
       "data_model",
       "security",
+      "backlog",
     ])
     .order("created_at", {
       ascending: true,
