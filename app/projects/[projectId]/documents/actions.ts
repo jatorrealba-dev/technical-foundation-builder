@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  artifactCatalog,
   getArtifactDefinition,
 } from "@/domain/artifacts/artifact-catalog";
 import type {
@@ -39,6 +40,16 @@ export type GenerateDocumentResult =
   | {
       ok: true;
       artifact: GeneratedArtifact;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+export type GeneratePackageResult =
+  | {
+      ok: true;
+      artifacts: GeneratedArtifact[];
     }
   | {
       ok: false;
@@ -144,25 +155,25 @@ function mapArtifact(
   };
 }
 
-async function generateDocument(
-  input: GenerateDocumentInput,
-  artifactType: ArtifactType
-): Promise<GenerateDocumentResult> {
-  const projectId = input.projectId.trim();
+function revalidateProjectDocuments(
+  projectId: string
+): void {
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(
+    `/projects/${projectId}/documents`
+  );
+}
 
+async function loadGenerationContext(
+  projectId: string
+) {
   if (!projectId) {
     return {
-      ok: false,
+      ok: false as const,
       error:
         "El identificador del proyecto es obligatorio.",
     };
   }
-
-  const definition =
-    getArtifactDefinition(artifactType);
-
-  const generateContent =
-    artifactGenerators[artifactType];
 
   const supabase = await createClient();
 
@@ -173,7 +184,7 @@ async function generateDocument(
 
   if (userError || !user) {
     return {
-      ok: false,
+      ok: false as const,
       error:
         "Debes iniciar sesión para generar documentos.",
     };
@@ -192,14 +203,14 @@ async function generateDocument(
 
   if (projectError) {
     return {
-      ok: false,
+      ok: false as const,
       error: projectError.message,
     };
   }
 
   if (!projectData) {
     return {
-      ok: false,
+      ok: false as const,
       error:
         "El proyecto no existe o no tienes acceso.",
     };
@@ -218,30 +229,53 @@ async function generateDocument(
 
   if (modelError) {
     return {
-      ok: false,
+      ok: false as const,
       error: modelError.message,
     };
   }
 
   if (!modelData) {
     return {
-      ok: false,
+      ok: false as const,
       error:
         "Primero debes generar el análisis inicial del proyecto antes de crear documentos.",
     };
   }
 
-  const project = mapProject(
-    projectData as unknown as ProjectRow
-  );
+  return {
+    ok: true as const,
+    supabase,
+    project: mapProject(
+      projectData as unknown as ProjectRow
+    ),
+    model: mapProjectModel(
+      modelData as unknown as ProjectModelRow
+    ),
+  };
+}
 
-  const model = mapProjectModel(
-    modelData as unknown as ProjectModelRow
-  );
+async function generateDocument(
+  input: GenerateDocumentInput,
+  artifactType: ArtifactType
+): Promise<GenerateDocumentResult> {
+  const projectId = input.projectId.trim();
+
+  const context =
+    await loadGenerationContext(projectId);
+
+  if (!context.ok) {
+    return context;
+  }
+
+  const definition =
+    getArtifactDefinition(artifactType);
+
+  const generateContent =
+    artifactGenerators[artifactType];
 
   const content = generateContent({
-    project,
-    model,
+    project: context.project,
+    model: context.model,
   });
 
   const now = new Date().toISOString();
@@ -249,7 +283,7 @@ async function generateDocument(
   const {
     data: artifactData,
     error: artifactError,
-  } = await supabase
+  } = await context.supabase
     .from("artifacts")
     .upsert(
       {
@@ -281,14 +315,76 @@ async function generateDocument(
     artifactData as unknown as ArtifactRow
   );
 
-  revalidatePath(`/projects/${projectId}`);
-  revalidatePath(
-    `/projects/${projectId}/documents`
-  );
+  revalidateProjectDocuments(projectId);
 
   return {
     ok: true,
     artifact,
+  };
+}
+
+export async function generatePackageAction(
+  input: GenerateDocumentInput
+): Promise<GeneratePackageResult> {
+  const projectId = input.projectId.trim();
+
+  const context =
+    await loadGenerationContext(projectId);
+
+  if (!context.ok) {
+    return context;
+  }
+
+  const now = new Date().toISOString();
+
+  const artifactPayloads = artifactCatalog.map(
+    (definition) => {
+      const generateContent =
+        artifactGenerators[definition.type];
+
+      return {
+        project_id: projectId,
+        type: definition.type,
+        title: definition.title,
+        filename: definition.filename,
+        format: "markdown" as const,
+        content: generateContent({
+          project: context.project,
+          model: context.model,
+        }),
+        updated_at: now,
+      };
+    }
+  );
+
+  const {
+    data: artifactRows,
+    error: artifactsError,
+  } = await context.supabase
+    .from("artifacts")
+    .upsert(artifactPayloads, {
+      onConflict: "project_id,type",
+    })
+    .select(
+      "id, project_id, type, title, filename, format, content, created_at, updated_at"
+    );
+
+  if (artifactsError) {
+    return {
+      ok: false,
+      error: artifactsError.message,
+    };
+  }
+
+  const artifacts = (
+    (artifactRows ?? []) as unknown as ArtifactRow[]
+  ).map(mapArtifact);
+
+  revalidateProjectDocuments(projectId);
+
+  return {
+    ok: true,
+    artifacts,
   };
 }
 

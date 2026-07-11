@@ -28,6 +28,7 @@ import {
   generateDataModelAction,
   generateDomainModelAction,
   generateMvpScopeAction,
+  generatePackageAction,
   generateProductSpecAction,
   generateSecurityAction,
   generateVerticalSlicePlanAction,
@@ -169,6 +170,34 @@ async function generateDocumentFormAction(
   redirect(`/projects/${projectId}/documents`);
 }
 
+async function generatePackageFormAction(
+  formData: FormData
+) {
+  "use server";
+
+  const projectId = String(
+    formData.get("projectId") ?? ""
+  ).trim();
+
+  if (!projectId) {
+    redirect("/dashboard");
+  }
+
+  const result = await generatePackageAction({
+    projectId,
+  });
+
+  if (!result.ok) {
+    redirect(
+      `/projects/${projectId}/documents?error=${encodeURIComponent(
+        result.error
+      )}`
+    );
+  }
+
+  redirect(`/projects/${projectId}/documents`);
+}
+
 export default async function ProjectDocumentsPage({
   params,
   searchParams,
@@ -267,6 +296,9 @@ export default async function ProjectDocumentsPage({
       )
     ).length;
 
+  const packageIsComplete =
+    generatedCount === artifactCatalog.length;
+
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -278,36 +310,52 @@ export default async function ProjectDocumentsPage({
           </Button>
         </div>
 
-        <header className="mb-10">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">
-              Documentos
-            </Badge>
+        <header className="mb-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">
+                Documentos
+              </Badge>
 
-            <Badge
-              variant={
-                generatedCount > 0
-                  ? "default"
-                  : "outline"
-              }
-            >
-              {generatedCount} de{" "}
-              {artifactCatalog.length} generados
-            </Badge>
+              <Badge
+                variant={
+                  generatedCount > 0
+                    ? "default"
+                    : "outline"
+                }
+              >
+                {generatedCount} de{" "}
+                {artifactCatalog.length} generados
+              </Badge>
+            </div>
+
+            <h1 className="text-4xl font-bold tracking-tight">
+              Documentos del proyecto
+            </h1>
+
+            <p className="mt-2 font-medium">
+              {project.name}
+            </p>
+
+            <p className="mt-3 max-w-3xl text-muted-foreground">
+              Genera artefactos técnicos desde el Project
+              Model estructurado y persistido en Supabase.
+            </p>
           </div>
 
-          <h1 className="text-4xl font-bold tracking-tight">
-            Documentos del proyecto
-          </h1>
+          <form action={generatePackageFormAction}>
+            <input
+              type="hidden"
+              name="projectId"
+              value={project.id}
+            />
 
-          <p className="mt-2 font-medium">
-            {project.name}
-          </p>
-
-          <p className="mt-3 max-w-3xl text-muted-foreground">
-            Genera artefactos técnicos desde el Project
-            Model estructurado y persistido en Supabase.
-          </p>
+            <Button type="submit" size="lg">
+              {packageIsComplete
+                ? "Regenerar paquete completo"
+                : "Generar paquete completo"}
+            </Button>
+          </form>
         </header>
 
         {actionError ? (
@@ -323,6 +371,39 @@ export default async function ProjectDocumentsPage({
             </CardHeader>
           </Card>
         ) : null}
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>
+              Generación del paquete
+            </CardTitle>
+
+            <CardDescription>
+              La operación completa genera o actualiza los ocho
+              documentos utilizando el mismo Project Model.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
+            <p>
+              Estado:{" "}
+              <span className="font-medium text-foreground">
+                {packageIsComplete
+                  ? "Paquete completo"
+                  : `${generatedCount} de ${artifactCatalog.length} documentos`}
+              </span>
+            </p>
+
+            <p>
+              La regeneración conserva una sola fila por tipo de
+              artefacto mediante la restricción{" "}
+              <code className="rounded bg-muted px-1 py-0.5">
+                project_id + type
+              </code>
+              .
+            </p>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6">
           {artifactCatalog.map((definition) => {
