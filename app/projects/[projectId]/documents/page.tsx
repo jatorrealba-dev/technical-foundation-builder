@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import {
   generateArchitectureAction,
+  generateDataModelAction,
   generateDomainModelAction,
   generateMvpScopeAction,
   generateProductSpecAction,
@@ -51,7 +52,8 @@ type SupportedArtifactType =
   | "product_spec"
   | "mvp_scope"
   | "domain_model"
-  | "architecture";
+  | "architecture"
+  | "data_model";
 
 type DocumentDefinition = {
   type: SupportedArtifactType;
@@ -88,6 +90,13 @@ const documentDefinitions: DocumentDefinition[] = [
     filename: "ARCHITECTURE.md",
     description:
       "Propone el estilo arquitectónico, las capas, módulos candidatos, responsabilidades de datos, seguridad, integraciones y estrategia de evolución.",
+  },
+  {
+    type: "data_model",
+    title: "Data Model",
+    filename: "DATA_MODEL.md",
+    description:
+      "Propone entidades persistentes, tablas candidatas, relaciones pendientes, restricciones de integridad, tenancy, índices y estrategia de migraciones.",
   },
 ];
 
@@ -146,11 +155,15 @@ async function generateDocumentFormAction(
             ? await generateArchitectureAction({
                 projectId,
               })
-            : {
-                ok: false as const,
-                error:
-                  "El tipo de documento seleccionado no es válido.",
-              };
+            : artifactType === "data_model"
+              ? await generateDataModelAction({
+                  projectId,
+                })
+              : {
+                  ok: false as const,
+                  error:
+                    "El tipo de documento seleccionado no es válido.",
+                };
 
   if (!result.ok) {
     redirect(
@@ -245,6 +258,7 @@ export default async function ProjectDocumentsPage({
       "mvp_scope",
       "domain_model",
       "architecture",
+      "data_model",
     ])
     .order("created_at", {
       ascending: true,
