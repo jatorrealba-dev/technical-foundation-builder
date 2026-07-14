@@ -485,11 +485,24 @@ export default async function ProjectDocumentsPage({
 
                     <div className="flex flex-wrap gap-3">
                       {artifact ? (
-                        <DownloadArtifactButton
-                          filename={artifact.filename}
-                          content={artifact.content}
-                          label={`Descargar ${artifact.filename}`}
-                        />
+                        <>
+                          <Button
+                            variant="outline"
+                            asChild
+                          >
+                            <Link
+                              href={`/projects/${project.id}/documents/${definition.type}`}
+                            >
+                              Ver historial
+                            </Link>
+                          </Button>
+
+                          <DownloadArtifactButton
+                            filename={artifact.filename}
+                            content={artifact.content}
+                            label={`Descargar ${artifact.filename}`}
+                          />
+                        </>
                       ) : null}
 
                       <form
