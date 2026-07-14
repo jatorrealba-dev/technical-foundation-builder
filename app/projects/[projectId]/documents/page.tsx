@@ -62,6 +62,10 @@ type ArtifactRow = {
   updated_at: string;
 };
 
+type ArtifactVersionReferenceRow = {
+  artifact_id: string;
+};
+
 function mapArtifact(row: ArtifactRow): GeneratedArtifact {
   return {
     id: row.id,
@@ -289,6 +293,44 @@ export default async function ProjectDocumentsPage({
     (artifactRows ?? []) as unknown as ArtifactRow[]
   ).map(mapArtifact);
 
+  const artifactIds = artifacts.map(
+    (artifact) => artifact.id
+  );
+
+  let versionRows: ArtifactVersionReferenceRow[] = [];
+
+  if (artifactIds.length > 0) {
+    const {
+      data: artifactVersionRows,
+      error: artifactVersionsError,
+    } = await supabase
+      .from("artifact_versions")
+      .select("artifact_id")
+      .in("artifact_id", artifactIds);
+
+    if (artifactVersionsError) {
+      throw new Error(
+        artifactVersionsError.message
+      );
+    }
+
+    versionRows =
+      (artifactVersionRows ?? []) as unknown as ArtifactVersionReferenceRow[];
+  }
+
+  const versionCountByArtifactId =
+    versionRows.reduce<Map<string, number>>(
+      (counts, version) => {
+        counts.set(
+          version.artifact_id,
+          (counts.get(version.artifact_id) ?? 0) + 1
+        );
+
+        return counts;
+      },
+      new Map()
+    );
+
   const generatedCount =
     artifactCatalog.filter((definition) =>
       artifacts.some(
@@ -425,8 +467,13 @@ export default async function ProjectDocumentsPage({
             </p>
 
             <p>
-              La regeneración conserva una sola fila por tipo de
-              artefacto mediante la restricción{" "}
+              Cada regeneración actualiza el documento vigente y
+              conserva una versión inmutable en el historial.
+            </p>
+
+            <p>
+              La tabla principal mantiene una sola fila por tipo
+              mediante la restricción{" "}
               <code className="rounded bg-muted px-1 py-0.5">
                 project_id + type
               </code>
@@ -441,6 +488,12 @@ export default async function ProjectDocumentsPage({
               (item) =>
                 item.type === definition.type
             );
+
+            const versionCount = artifact
+              ? versionCountByArtifactId.get(
+                  artifact.id
+                ) ?? 0
+              : 0;
 
             return (
               <Card key={definition.type}>
@@ -463,6 +516,15 @@ export default async function ProjectDocumentsPage({
                         <Badge variant="outline">
                           markdown
                         </Badge>
+
+                        {artifact ? (
+                          <Badge variant="secondary">
+                            {versionCount}{" "}
+                            {versionCount === 1
+                              ? "versión"
+                              : "versiones"}
+                          </Badge>
+                        ) : null}
                       </div>
 
                       <CardTitle>
@@ -493,7 +555,7 @@ export default async function ProjectDocumentsPage({
                             <Link
                               href={`/projects/${project.id}/documents/${definition.type}`}
                             >
-                              Ver historial
+                              Abrir historial ({versionCount})
                             </Link>
                           </Button>
 

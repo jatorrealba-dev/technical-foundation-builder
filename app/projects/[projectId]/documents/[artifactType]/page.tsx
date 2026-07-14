@@ -24,10 +24,16 @@ import type {
 } from "@/domain/artifacts/artifact";
 import { createClient } from "@/lib/supabase/server";
 
+import { RestoreVersionForm } from "./restore-version-form";
+
 type ArtifactHistoryPageProps = {
   params: Promise<{
     projectId: string;
     artifactType: string;
+  }>;
+  searchParams: Promise<{
+    error?: string | string[];
+    restored?: string | string[];
   }>;
 };
 
@@ -91,17 +97,60 @@ function hasSnapshotProperty(
   );
 }
 
+function createVersionFilename(
+  filename: string,
+  versionNumber: number
+): string {
+  const extensionIndex =
+    filename.lastIndexOf(".");
+
+  if (extensionIndex <= 0) {
+    return `${filename}-v${versionNumber}`;
+  }
+
+  const baseName = filename.slice(
+    0,
+    extensionIndex
+  );
+
+  const extension = filename.slice(
+    extensionIndex
+  );
+
+  return `${baseName}-v${versionNumber}${extension}`;
+}
+
 export default async function ArtifactHistoryPage({
   params,
+  searchParams,
 }: ArtifactHistoryPageProps) {
   const {
     projectId,
     artifactType: artifactTypeValue,
   } = await params;
 
+  const resolvedSearchParams =
+    await searchParams;
+
   if (!isArtifactType(artifactTypeValue)) {
     notFound();
   }
+
+  const errorParam =
+    resolvedSearchParams.error;
+
+  const restoredParam =
+    resolvedSearchParams.restored;
+
+  const actionError = Array.isArray(errorParam)
+    ? errorParam[0]
+    : errorParam;
+
+  const restoredVersion = Array.isArray(
+    restoredParam
+  )
+    ? restoredParam[0]
+    : restoredParam;
 
   const artifactType = artifactTypeValue;
   const definition =
@@ -142,8 +191,7 @@ export default async function ArtifactHistoryPage({
               </CardTitle>
 
               <CardDescription>
-                El proyecto no existe o no tienes
-                acceso.
+                El proyecto no existe o no tienes acceso.
               </CardDescription>
             </CardHeader>
 
@@ -183,7 +231,7 @@ export default async function ArtifactHistoryPage({
     ? (artifactData as unknown as ArtifactRow)
     : null;
 
-  const versions: ArtifactVersionRow[] = [];
+  let versions: ArtifactVersionRow[] = [];
 
   if (artifact) {
     const {
@@ -203,9 +251,8 @@ export default async function ArtifactHistoryPage({
       throw new Error(versionsError.message);
     }
 
-    versions.push(
-      ...((versionRows ?? []) as unknown as ArtifactVersionRow[])
-    );
+    versions =
+      (versionRows ?? []) as unknown as ArtifactVersionRow[];
   }
 
   const latestVersionNumber =
@@ -245,13 +292,13 @@ export default async function ArtifactHistoryPage({
             >
               {versions.length}{" "}
               {versions.length === 1
-                ? "versión"
-                : "versiones"}
+                ? "versión guardada"
+                : "versiones guardadas"}
             </Badge>
 
             {latestVersionNumber > 0 ? (
               <Badge variant="outline">
-                Actual: v{latestVersionNumber}
+                Vigente: v{latestVersionNumber}
               </Badge>
             ) : null}
           </div>
@@ -265,11 +312,40 @@ export default async function ArtifactHistoryPage({
           </p>
 
           <p className="mt-3 max-w-3xl text-muted-foreground">
-            Consulta el documento vigente y todas las
-            versiones inmutables creadas durante sus
-            regeneraciones.
+            Las versiones y sus acciones aparecen primero. El
+            contenido completo del documento vigente se muestra
+            después del historial.
           </p>
         </header>
+
+        {restoredVersion ? (
+          <Card className="mb-6 border-green-600">
+            <CardHeader>
+              <CardTitle>
+                Versión restaurada
+              </CardTitle>
+
+              <CardDescription>
+                La versión {restoredVersion} fue restaurada y el
+                trigger la guardó como una nueva versión vigente.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
+
+        {actionError ? (
+          <Card className="mb-6 border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">
+                No se pudo restaurar la versión
+              </CardTitle>
+
+              <CardDescription>
+                {actionError}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
 
         {!artifact ? (
           <Card>
@@ -285,9 +361,7 @@ export default async function ArtifactHistoryPage({
 
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Este artefacto todavía no ha sido
-                generado, por lo que no existe historial
-                de versiones.
+                Este documento todavía no ha sido generado.
               </p>
 
               <Button asChild>
@@ -313,6 +387,12 @@ export default async function ArtifactHistoryPage({
                       <Badge variant="outline">
                         {artifact.format}
                       </Badge>
+
+                      {latestVersionNumber > 0 ? (
+                        <Badge variant="secondary">
+                          Versión {latestVersionNumber}
+                        </Badge>
+                      ) : null}
                     </div>
 
                     <CardTitle>
@@ -320,8 +400,7 @@ export default async function ArtifactHistoryPage({
                     </CardTitle>
 
                     <CardDescription className="mt-2">
-                      Última actualización:{" "}
-                      {formatDate(
+                      Última actualización: {formatDate(
                         artifact.updated_at
                       )}
                     </CardDescription>
@@ -334,28 +413,22 @@ export default async function ArtifactHistoryPage({
                   />
                 </div>
               </CardHeader>
-
-              <CardContent>
-                <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-5 text-sm leading-7">
-                  {artifact.content}
-                </pre>
-              </CardContent>
             </Card>
 
             <div className="mb-5">
               <h2 className="text-2xl font-semibold tracking-tight">
-                Versiones guardadas
+                Versiones disponibles
               </h2>
 
               <p className="mt-2 text-sm text-muted-foreground">
-                Cada versión conserva el contenido y el
-                snapshot del proyecto utilizado durante
-                la generación.
+                La versión vigente no se puede restaurar. Las
+                versiones históricas incluyen una acción visible
+                para convertirlas en una nueva versión vigente.
               </p>
             </div>
 
             {versions.length > 0 ? (
-              <div className="grid gap-5">
+              <div className="mb-10 grid gap-5">
                 {versions.map((version) => {
                   const isCurrentVersion =
                     version.version_number ===
@@ -386,22 +459,25 @@ export default async function ArtifactHistoryPage({
                                     : "outline"
                                 }
                               >
-                                Versión{" "}
-                                {version.version_number}
+                                Versión {version.version_number}
                               </Badge>
 
-                              {isCurrentVersion ? (
-                                <Badge variant="secondary">
-                                  Vigente
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">
-                                  Histórica
-                                </Badge>
-                              )}
+                              <Badge
+                                variant={
+                                  isCurrentVersion
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                              >
+                                {isCurrentVersion
+                                  ? "Vigente"
+                                  : "Histórica"}
+                              </Badge>
 
                               <Badge variant="outline">
-                                {version.format}
+                                {version.generated_by
+                                  ? "Usuario autenticado"
+                                  : "Migración inicial"}
                               </Badge>
                             </div>
 
@@ -410,34 +486,46 @@ export default async function ArtifactHistoryPage({
                             </CardTitle>
 
                             <CardDescription className="mt-2">
-                              Creada el{" "}
-                              {formatDate(
+                              Creada el {formatDate(
                                 version.created_at
                               )}
                             </CardDescription>
                           </div>
 
-                          <DownloadArtifactButton
-                            filename={
-                              version.filename.replace(
-                                /\.md$/i,
-                                `-v${version.version_number}.md`
-                              )
-                            }
-                            content={version.content}
-                            label={`Descargar v${version.version_number}`}
-                          />
+                          <div className="flex flex-wrap gap-3">
+                            {!isCurrentVersion ? (
+                              <RestoreVersionForm
+                                projectId={project.id}
+                                artifactType={artifactType}
+                                versionId={version.id}
+                                versionNumber={
+                                  version.version_number
+                                }
+                              />
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled
+                              >
+                                Versión vigente
+                              </Button>
+                            )}
+
+                            <DownloadArtifactButton
+                              filename={createVersionFilename(
+                                version.filename,
+                                version.version_number
+                              )}
+                              content={version.content}
+                              label={`Descargar v${version.version_number}`}
+                            />
+                          </div>
                         </div>
                       </CardHeader>
 
                       <CardContent className="space-y-5">
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline">
-                            {version.generated_by
-                              ? "Usuario autenticado"
-                              : "Migración inicial"}
-                          </Badge>
-
                           <Badge
                             variant={
                               hasProjectSnapshot
@@ -461,8 +549,7 @@ export default async function ArtifactHistoryPage({
 
                         <details className="rounded-lg border bg-muted/20">
                           <summary className="cursor-pointer px-5 py-4 font-medium">
-                            Ver contenido de la versión{" "}
-                            {version.version_number}
+                            Ver contenido de la versión {version.version_number}
                           </summary>
 
                           <div className="border-t p-5">
@@ -477,19 +564,39 @@ export default async function ArtifactHistoryPage({
                 })}
               </div>
             ) : (
-              <Card>
+              <Card className="mb-10 border-destructive">
                 <CardHeader>
                   <CardTitle>
                     Historial no disponible
                   </CardTitle>
 
                   <CardDescription>
-                    El documento existe, pero no se
-                    encontraron versiones registradas.
+                    El documento existe, pero no se encontraron
+                    versiones accesibles. Verifica la migración
+                    0005 y sus políticas RLS.
                   </CardDescription>
                 </CardHeader>
               </Card>
             )}
+
+            <div className="mb-5">
+              <h2 className="text-2xl font-semibold tracking-tight">
+                Vista previa vigente
+              </h2>
+
+              <p className="mt-2 text-sm text-muted-foreground">
+                Este contenido corresponde a la fila actual de
+                artifacts.
+              </p>
+            </div>
+
+            <Card>
+              <CardContent className="pt-6">
+                <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-5 text-sm leading-7">
+                  {artifact.content}
+                </pre>
+              </CardContent>
+            </Card>
           </>
         )}
       </section>

@@ -1,47 +1,85 @@
 # Technical Foundation Builder
 
-Technical Foundation Builder es una plataforma SaaS web que ayuda a fundadores, consultores, agencias y desarrolladores nuevos a transformar una idea informal en una base técnica profesional lista para equipos de desarrollo y agentes de programación.
+Aplicación SaaS que transforma una idea de producto en un Project Model estructurado y un paquete técnico versionado.
 
-El producto entrevista al usuario, recopila requisitos, detecta supuestos, identifica contradicciones, genera documentos técnicos, calcula un nivel de preparación y exporta un paquete de desarrollo.
+## Stack
 
-## Objetivo inicial
-
-Construir un MVP que permita:
-
-1. Crear una cuenta.
-2. Crear un proyecto.
-3. Describir una idea.
-4. Responder una entrevista guiada.
-5. Extraer requisitos estructurados.
-6. Generar un paquete técnico inicial.
-7. Calcular un Readiness Score.
-8. Exportar Markdown, PDF y ZIP.
-
-## Stack propuesto
-
-- Next.js + TypeScript
-- React
+- Next.js 16 + React 19 + TypeScript
 - Tailwind CSS + shadcn/ui
-- Supabase PostgreSQL
-- Supabase Auth
-- Supabase Storage
-- OpenAI Responses API / Agents SDK
-- Trigger.dev
-- Vercel
-- GitHub Actions
+- Supabase Auth + PostgreSQL + RLS
+- OpenAI Responses API mediante OpenAI Agents SDK
+- Zod Structured Outputs
 
-## Documentos incluidos
+## Flujo funcional
 
-- PROJECT_CHARTER.md
-- PRODUCT_SPEC.md
-- MVP_SCOPE.md
-- DOMAIN_MODEL.md
-- ARCHITECTURE.md
-- DATA_MODEL.md
-- SECURITY.md
-- TEST_STRATEGY.md
-- BACKLOG.md
-- AGENTS.md
-- DEFINITION_OF_READY.md
-- DEFINITION_OF_DONE.md
-- VERTICAL_SLICE_PLAN.md
+```text
+Registro
+→ organización
+→ proyecto
+→ entrevista
+→ Project Model
+→ documentos técnicos
+→ historial de versiones
+→ ZIP
+→ agentes de IA auditables
+```
+
+## Instalación
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Completa las variables públicas de Supabase en `.env.local`.
+
+## Migraciones
+
+Las migraciones están en `supabase/migrations`.
+
+Orden actual:
+
+```text
+0001_initial_foundation_schema.sql
+0002_harden_organization_ownership.sql
+0003_unique_interview_session_per_project.sql
+0004_allow_creators_to_read_organizations.sql
+0005_artifact_versions.sql
+0006_ai_agent_foundation.sql
+```
+
+Después de vincular Supabase CLI:
+
+```bash
+npx supabase db push
+```
+
+## Agentes de IA
+
+La integración está deshabilitada por defecto. Para habilitarla:
+
+```text
+AI_AGENTS_ENABLED=true
+OPENAI_API_KEY=...
+OPENAI_AGENT_MODEL=gpt-5.6
+OPENAI_AGENTS_TRACING_ENABLED=false
+```
+
+Ruta del proyecto:
+
+```text
+/projects/[projectId]/agents
+```
+
+Los agentes generan salidas estructuradas y guardan ejecuciones auditables. No actualizan automáticamente el Project Model.
+
+Consulta `AI_INTEGRATION.md` para arquitectura, seguridad y próximos pasos.
+
+## Validación
+
+```bash
+npm run check
+```
+
+El comando ejecuta lint, typecheck y build de producción.
