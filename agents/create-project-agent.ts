@@ -12,6 +12,9 @@ import {
   securityAgentOutputSchema,
 } from "@/schemas/agents/agent-outputs";
 
+import { getDiscoveryV2AgentPrompt } from "@/agents/discovery-v2-prompt";
+import { discoveryAgentOutputV2Schema } from "@/schemas/discovery/discovery-agent-output-v2";
+
 import { getAgentInstructions } from "./prompts";
 import { getAgentDefinition } from "./registry";
 
@@ -22,11 +25,20 @@ export function createProjectAgent(input: {
   const definition = getAgentDefinition(input.key);
   const common = {
     name: definition.name,
-    instructions: getAgentInstructions(input.key),
+    instructions:
+      input.key === "discovery"
+        ? getDiscoveryV2AgentPrompt()
+        : getAgentInstructions(input.key),
     model: input.model,
   };
 
   switch (input.key) {
+    case "discovery":
+      return new Agent({
+        ...common,
+        outputType: discoveryAgentOutputV2Schema,
+      });
+
     case "interview":
       return new Agent({
         ...common,

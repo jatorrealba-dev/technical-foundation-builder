@@ -888,26 +888,34 @@ export default async function ProjectAgentsPage({
                     </p>
                   ) : null}
 
-                  <form action={runProjectAgentFormAction}>
-                    <input
-                      type="hidden"
-                      name="projectId"
-                      value={project.id}
-                    />
-
-                    <input
-                      type="hidden"
-                      name="agentKey"
-                      value={definition.key}
-                    />
-
-                    <Button
-                      type="submit"
-                      disabled={!canRun}
-                    >
-                      Ejecutar agente
+                  {definition.key === "discovery" ? (
+                    <Button asChild disabled={!configuration.ready || !organizationAiEnabled}>
+                      <Link href={`/projects/${project.id}/discovery`}>
+                        Abrir conversación
+                      </Link>
                     </Button>
-                  </form>
+                  ) : (
+                    <form action={runProjectAgentFormAction}>
+                      <input
+                        type="hidden"
+                        name="projectId"
+                        value={project.id}
+                      />
+
+                      <input
+                        type="hidden"
+                        name="agentKey"
+                        value={definition.key}
+                      />
+
+                      <Button
+                        type="submit"
+                        disabled={!canRun}
+                      >
+                        Ejecutar agente
+                      </Button>
+                    </form>
+                  )}
                 </CardContent>
               </Card>
             );

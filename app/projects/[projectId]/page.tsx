@@ -423,6 +423,12 @@ export default async function ProjectDetailPage({
             </Button>
 
             <Button variant="outline" asChild>
+              <Link href={`/projects/${projectRow.id}/discovery`}>
+                Discovery
+              </Link>
+            </Button>
+
+            <Button variant="outline" asChild>
               <Link href={`/projects/${projectRow.id}/agents`}>
                 Agentes IA
               </Link>

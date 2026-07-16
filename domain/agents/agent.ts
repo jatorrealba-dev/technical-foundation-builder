@@ -1,4 +1,5 @@
 export const agentKeys = [
+  "discovery",
   "interview",
   "project_model",
   "architecture",

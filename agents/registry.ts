@@ -5,6 +5,15 @@ import type {
 
 export const agentCatalog: readonly AgentDefinition[] = [
   {
+    key: "discovery",
+    name: "Technical Discovery Analyst",
+    description:
+      "Conduce el descubrimiento conversacional en lenguaje comprensible y transforma cada respuesta en evidencia técnica gobernada.",
+    promptVersion: "discovery.v2",
+    requiresProjectModel: false,
+    requiresArtifacts: false,
+  },
+  {
     key: "interview",
     name: "Interview Strategist",
     description:

@@ -252,6 +252,10 @@ export async function runProjectAgentFormAction(
     );
   }
 
+  if (agentKeyValue === "discovery") {
+    redirect(`/projects/${projectId}/discovery`);
+  }
+
   const supabase = await createClient();
 
   const {

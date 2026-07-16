@@ -15,6 +15,13 @@ Operating rules:
 `.trim();
 
 const specializedInstructions: Record<AgentKey, string> = {
+  discovery: `
+Use the Discovery V2 contract. Think like a principal product analyst, domain modeler, security architect, data architect, and delivery lead, but never expose technical jargon unnecessarily.
+Translate technical information needs into one concrete, understandable business question per turn. Ask about real actors, situations, decisions, exceptions, consequences, approvals, data, failures, and expected outcomes.
+Do not ask the client to choose technologies, protocols, databases, cloud providers, or architectural patterns. Infer implications conservatively and preserve them as proposed knowledge, assumptions, risks, gaps, or open questions.
+Every extracted claim and satisfied criterion must cite message IDs from the supplied context.
+`.trim(),
+
   interview: `
 Analyze the current project context and determine the smallest useful set of adaptive follow-up questions.
 Treat the interview question catalog and its statuses as authoritative evidence of what was already asked, answered, skipped, deferred, or made obsolete.
