@@ -47,6 +47,24 @@ function getSafeOption(
   return fallback;
 }
 
+function newProjectPath(input: {
+  organizationId?: string;
+  error?: string;
+}): string {
+  const query = new URLSearchParams();
+
+  if (input.organizationId) {
+    query.set("organizationId", input.organizationId);
+  }
+
+  if (input.error) {
+    query.set("error", input.error);
+  }
+
+  const suffix = query.toString();
+  return suffix ? `/projects/new?${suffix}` : "/projects/new";
+}
+
 export async function createProjectAction(
   formData: FormData
 ) {
@@ -77,15 +95,26 @@ export async function createProjectAction(
     "mainGoal"
   );
 
+  const requestedOrganizationId = getFormValue(
+    formData,
+    "organizationId"
+  );
+
   if (!name) {
     redirect(
-      "/projects/new?error=El%20nombre%20del%20proyecto%20es%20obligatorio."
+      newProjectPath({
+        organizationId: requestedOrganizationId,
+        error: "El nombre del proyecto es obligatorio.",
+      })
     );
   }
 
   if (!description) {
     redirect(
-      "/projects/new?error=La%20descripcion%20del%20proyecto%20es%20obligatoria."
+      newProjectPath({
+        organizationId: requestedOrganizationId,
+        error: "La descripción del proyecto es obligatoria.",
+      })
     );
   }
 
@@ -102,21 +131,29 @@ export async function createProjectAction(
     );
   }
 
+  let membershipQuery = supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id);
+
+  if (requestedOrganizationId) {
+    membershipQuery = membershipQuery.eq(
+      "organization_id",
+      requestedOrganizationId
+    );
+  }
+
   const {
     data: membership,
     error: membershipError,
-  } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
+  } = await membershipQuery.limit(1).maybeSingle();
 
   if (membershipError) {
     redirect(
-      `/projects/new?error=${encodeURIComponent(
-        membershipError.message
-      )}`
+      newProjectPath({
+        organizationId: requestedOrganizationId,
+        error: membershipError.message,
+      })
     );
   }
 
@@ -141,11 +178,12 @@ export async function createProjectAction(
 
   if (projectError) {
     redirect(
-      `/projects/new?error=${encodeURIComponent(
-        projectError.message
-      )}`
+      newProjectPath({
+        organizationId: membership.organization_id,
+        error: projectError.message,
+      })
     );
   }
 
-  redirect("/dashboard");
+  redirect(`/dashboard?organizationId=${membership.organization_id}`);
 }

@@ -1,0 +1,32 @@
+{
+  "version": "v9",
+  "name": "Collaboration and Teams",
+  "migration": "0013_collaboration_and_teams.sql",
+  "new_routes": [
+    "/organizations/[organizationId]/team",
+    "/invitations/[token]"
+  ],
+  "new_tables": [
+    "organization_invitations",
+    "organization_membership_events"
+  ],
+  "new_rpcs": [
+    "create_organization_invitation",
+    "preview_organization_invitation",
+    "accept_organization_invitation",
+    "revoke_organization_invitation",
+    "update_organization_member_role",
+    "remove_organization_member",
+    "leave_organization",
+    "transfer_organization_ownership"
+  ],
+  "security": {
+    "token_storage": "sha256_hash_only",
+    "token_entropy_bytes": 32,
+    "email_match_required": true,
+    "single_use": true,
+    "default_expiration_days": 7,
+    "writes_through_rpc": true
+  },
+  "known_boundary": "organization-wide project access remains unchanged; project-specific ACLs are not part of v9"
+}

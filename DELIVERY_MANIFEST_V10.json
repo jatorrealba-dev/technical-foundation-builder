@@ -1,0 +1,69 @@
+{
+  "release": "Production Hardening v10",
+  "base_release": "Collaboration and Teams v9",
+  "migration": "0014_production_hardening.sql",
+  "new_routes": [
+    "/organizations/[organizationId]/settings/ai",
+    "/api/health",
+    "/api/health/ready"
+  ],
+  "capabilities": [
+    "atomic AI run reservation",
+    "organization token budgets",
+    "daily per-user execution limits",
+    "concurrency controls",
+    "policy-driven run timeout",
+    "stale-run recovery",
+    "structured correlation logging",
+    "health checks",
+    "HTTP security headers",
+    "high-severity dependency audit in CI"
+  ],
+  "validation": {
+    "eslint": "passed",
+    "typescript": "passed",
+    "tests": {
+      "passed": 33,
+      "failed": 0
+    },
+    "production_build": "passed",
+    "sql_statements_parsed": 60,
+    "health_liveness": "passed",
+    "audit_high": "passed",
+    "moderate_advisories": 2
+  },
+  "changed_files": [
+    ".env.example",
+    ".github/workflows/ci.yml",
+    "AI_INTEGRATION.md",
+    "ARCHITECTURE.md",
+    "DELIVERY_MANIFEST_V10.json",
+    "DEPLOYMENT_RUNBOOK.md",
+    "PRODUCTION_HARDENING_V10.md",
+    "README.md",
+    "SECURITY.md",
+    "TEST_STRATEGY.md",
+    "VALIDATION_V10.md",
+    "app/api/health/ready/route.ts",
+    "app/api/health/route.ts",
+    "app/dashboard/page.tsx",
+    "app/organizations/[organizationId]/settings/ai/actions.ts",
+    "app/organizations/[organizationId]/settings/ai/page.tsx",
+    "app/organizations/[organizationId]/team/page.tsx",
+    "app/projects/[projectId]/agents/page.tsx",
+    "domain/operations/ai-governance.ts",
+    "lib/ai/config.ts",
+    "lib/observability/correlation.ts",
+    "lib/observability/logger.ts",
+    "lib/runtime/error-sanitization.ts",
+    "lib/supabase/public-server.ts",
+    "next.config.ts",
+    "package.json",
+    "services/agents/run-project-agent.ts",
+    "services/operations/run-with-timeout.ts",
+    "supabase/migrations/0014_production_hardening.sql",
+    "supabase/tests/0014_production_hardening_verification.sql",
+    "tests/production-hardening.test.mjs"
+  ],
+  "connected_validation_required": true
+}

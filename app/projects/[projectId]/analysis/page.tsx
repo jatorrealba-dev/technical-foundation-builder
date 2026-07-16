@@ -22,6 +22,8 @@ type ProjectAnalysisPageProps = {
   }>;
   searchParams: Promise<{
     error?: string | string[];
+    updated?: string | string[];
+    changeSet?: string | string[];
   }>;
 };
 
@@ -106,6 +108,16 @@ export default async function ProjectAnalysisPage({
     ? errorParam[0]
     : errorParam;
 
+  const updatedParam = resolvedSearchParams.updated;
+  const wasUpdated = Array.isArray(updatedParam)
+    ? updatedParam[0] === "1"
+    : updatedParam === "1";
+
+  const changeSetParam = resolvedSearchParams.changeSet;
+  const updatedChangeSetId = Array.isArray(changeSetParam)
+    ? changeSetParam[0]
+    : changeSetParam;
+
   const supabase = await createClient();
 
   const {
@@ -181,12 +193,56 @@ export default async function ProjectAnalysisPage({
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto w-full max-w-6xl px-6 py-10">
-        <div className="mb-8">
+        <div className="mb-8 flex flex-wrap gap-3">
           <Button variant="ghost" asChild>
             <Link href={`/projects/${project.id}`}>
               ← Volver al proyecto
             </Link>
           </Button>
+
+          {model ? (
+            <Button variant="outline" asChild>
+              <Link
+                href={`/projects/${project.id}/analysis/history`}
+              >
+                Ver historial del Project Model
+              </Link>
+            </Button>
+          ) : null}
+
+          {model ? (
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${project.id}/analysis/edit`}>
+                Editar Project Model
+              </Link>
+            </Button>
+          ) : null}
+
+          {model ? (
+            <Button variant="outline" asChild>
+              <Link
+                href={`/projects/${project.id}/analysis/change-sets`}
+              >
+                Propuestas de cambios
+              </Link>
+            </Button>
+          ) : null}
+
+          {model ? (
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${project.id}/readiness`}>
+                Revisar readiness
+              </Link>
+            </Button>
+          ) : null}
+
+          {model ? (
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${project.id}/consistency`}>
+                Revisar consistencia
+              </Link>
+            </Button>
+          ) : null}
         </div>
 
         <header className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -242,6 +298,29 @@ export default async function ProjectAnalysisPage({
             </Button>
           </form>
         </header>
+
+        {wasUpdated ? (
+          <Card className="mb-6 border-green-600">
+            <CardHeader>
+              <CardTitle>Project Model actualizado</CardTitle>
+              <CardDescription>
+                Se creó una nueva versión y se regeneraron solo
+                los documentos afectados.
+                {updatedChangeSetId ? (
+                  <>
+                    {" "}
+                    <Link
+                      className="underline"
+                      href={`/projects/${project.id}/analysis/change-sets/${updatedChangeSetId}`}
+                    >
+                      Ver propuesta aplicada
+                    </Link>
+                  </>
+                ) : null}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
 
         {actionError ? (
           <Card className="mb-6 border-destructive">

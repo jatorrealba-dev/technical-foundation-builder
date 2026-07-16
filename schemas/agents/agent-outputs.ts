@@ -32,16 +32,34 @@ export const interviewAgentOutputSchema = z.object({
         id: z.string(),
         stage: z.enum([
           "idea",
+          "product",
           "users",
+          "domain",
           "workflow",
           "data",
           "security",
+          "architecture",
           "operations",
           "delivery",
         ]),
         question: z.string(),
+        helperText: z.string(),
         reason: z.string(),
         priority: prioritySchema,
+        affectsArtifacts: z.array(
+          z.enum([
+            "product_spec",
+            "mvp_scope",
+            "domain_model",
+            "architecture",
+            "data_model",
+            "security",
+            "backlog",
+            "vertical_slice_plan",
+          ])
+        ),
+        riskArea: z.string().nullable(),
+        required: z.boolean(),
       })
     )
     .max(8),
@@ -234,6 +252,7 @@ export const readinessAgentOutputSchema = z.object({
         "security",
         "testing",
         "delivery",
+        "operations",
       ]),
       score: z.number().int().min(0).max(100),
       rationale: z.string(),

@@ -38,6 +38,33 @@ type InterviewAnswerRow = {
   answered_at: string;
 };
 
+type InterviewQuestionRow = {
+  question_id: string;
+  stage: string;
+  question: string;
+  helper_text: string;
+  reason: string;
+  priority: string;
+  source: string;
+  status: string;
+  affects_artifacts: string[];
+  risk_area: string | null;
+  is_required: boolean;
+  reviewer_comment: string | null;
+  updated_at: string;
+};
+
+type InterviewBatchRow = {
+  source: string;
+  summary: string;
+  recommendation: string;
+  confidence: number | null;
+  missing_information: string[];
+  contradictions: string[];
+  question_count: number;
+  created_at: string;
+};
+
 type ProjectModelRow = {
   status: ProjectModel["status"];
   requirements: ProjectModel["requirements"];
@@ -58,12 +85,32 @@ type ArtifactRow = {
   updated_at: string;
 };
 
+type ArtifactStateRow = {
+  artifact_type: ArtifactType;
+  status: "current" | "outdated" | "regenerating" | "failed";
+  based_on_model_version: number | null;
+  reason: string | null;
+  updated_at: string;
+};
+
+type ConsistencyFindingRow = {
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  category: string;
+  title: string;
+  description: string;
+  status: "open" | "accepted" | "dismissed" | "resolved";
+  recommendation: string;
+  last_seen_at: string;
+};
+
 export type ProjectAgentContext = {
   capturedAt: string;
   project: ProjectRow;
   interview: {
     session: InterviewSessionRow | null;
     answers: InterviewAnswerRow[];
+    questions: InterviewQuestionRow[];
+    latestBatch: InterviewBatchRow | null;
   };
   projectModel: {
     status: ProjectModel["status"];
@@ -83,6 +130,22 @@ export type ProjectAgentContext = {
     content: string;
     contentTruncated: boolean;
     updatedAt: string;
+  }>;
+  artifactStates: Array<{
+    artifactType: ArtifactType;
+    status: ArtifactStateRow["status"];
+    basedOnModelVersion: number | null;
+    reason: string | null;
+    updatedAt: string;
+  }>;
+  activeConsistencyFindings: Array<{
+    severity: ConsistencyFindingRow["severity"];
+    category: string;
+    title: string;
+    description: string;
+    status: ConsistencyFindingRow["status"];
+    recommendation: string;
+    lastSeenAt: string;
   }>;
 };
 
@@ -168,30 +231,51 @@ export async function loadProjectAgentContext(input: {
     : null;
 
   let answers: InterviewAnswerRow[] = [];
+  let questions: InterviewQuestionRow[] = [];
+  let latestBatch: InterviewBatchRow | null = null;
 
   if (session) {
-    const {
-      data: answerRows,
-      error: answersError,
-    } = await input.supabase
-      .from("interview_answers")
-      .select(
-        "question_id, stage, answer, answered_at"
-      )
-      .eq("interview_session_id", session.id)
-      .order("answered_at", {
-        ascending: true,
-      });
+    const [answersResult, questionsResult, batchResult] = await Promise.all([
+      input.supabase
+        .from("interview_answers")
+        .select("question_id, stage, answer, answered_at")
+        .eq("interview_session_id", session.id)
+        .order("answered_at", { ascending: true }),
+      input.supabase
+        .from("interview_questions")
+        .select(
+          "question_id, stage, question, helper_text, reason, priority, source, status, affects_artifacts, risk_area, is_required, reviewer_comment, updated_at"
+        )
+        .eq("project_id", input.projectId)
+        .order("sort_order", { ascending: true }),
+      input.supabase
+        .from("interview_question_batches")
+        .select(
+          "source, summary, recommendation, confidence, missing_information, contradictions, question_count, created_at"
+        )
+        .eq("project_id", input.projectId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    if (answersError) {
-      return {
-        ok: false,
-        error: answersError.message,
-      };
+    if (answersResult.error) {
+      return { ok: false, error: answersResult.error.message };
     }
 
-    answers =
-      (answerRows ?? []) as unknown as InterviewAnswerRow[];
+    if (questionsResult.error) {
+      return { ok: false, error: questionsResult.error.message };
+    }
+
+    if (batchResult.error) {
+      return { ok: false, error: batchResult.error.message };
+    }
+
+    answers = (answersResult.data ?? []) as unknown as InterviewAnswerRow[];
+    questions = (questionsResult.data ?? []) as unknown as InterviewQuestionRow[];
+    latestBatch = batchResult.data
+      ? (batchResult.data as unknown as InterviewBatchRow)
+      : null;
   }
 
   const {
@@ -236,6 +320,42 @@ export async function loadProjectAgentContext(input: {
     };
   }
 
+  const [{ data: artifactStateRows, error: artifactStatesError }, {
+    data: consistencyFindingRows,
+    error: consistencyFindingsError,
+  }] = await Promise.all([
+    input.supabase
+      .from("project_artifact_states")
+      .select(
+        "artifact_type, status, based_on_model_version, reason, updated_at"
+      )
+      .eq("project_id", input.projectId)
+      .order("artifact_type", { ascending: true }),
+    input.supabase
+      .from("consistency_findings")
+      .select(
+        "severity, category, title, description, status, recommendation, last_seen_at"
+      )
+      .eq("project_id", input.projectId)
+      .in("status", ["open", "accepted"])
+      .order("last_seen_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  if (artifactStatesError) {
+    return {
+      ok: false,
+      error: artifactStatesError.message,
+    };
+  }
+
+  if (consistencyFindingsError) {
+    return {
+      ok: false,
+      error: consistencyFindingsError.message,
+    };
+  }
+
   const artifacts = (
     (artifactRows ?? []) as unknown as ArtifactRow[]
   ).map((artifact) => {
@@ -263,6 +383,8 @@ export async function loadProjectAgentContext(input: {
       interview: {
         session,
         answers,
+        questions,
+        latestBatch,
       },
       projectModel: model
         ? {
@@ -279,6 +401,26 @@ export async function loadProjectAgentContext(input: {
           }
         : null,
       artifacts,
+      artifactStates: (
+        (artifactStateRows ?? []) as unknown as ArtifactStateRow[]
+      ).map((state) => ({
+        artifactType: state.artifact_type,
+        status: state.status,
+        basedOnModelVersion: state.based_on_model_version,
+        reason: state.reason,
+        updatedAt: state.updated_at,
+      })),
+      activeConsistencyFindings: (
+        (consistencyFindingRows ?? []) as unknown as ConsistencyFindingRow[]
+      ).map((finding) => ({
+        severity: finding.severity,
+        category: finding.category,
+        title: finding.title,
+        description: finding.description,
+        status: finding.status,
+        recommendation: finding.recommendation,
+        lastSeenAt: finding.last_seen_at,
+      })),
     },
   };
 }

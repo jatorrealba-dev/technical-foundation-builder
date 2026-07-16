@@ -1,0 +1,77 @@
+{
+  "release": "Adaptive Interview v8",
+  "baseRelease": "Readiness Dashboard v7",
+  "generatedAt": "2026-07-15T00:00:00Z",
+  "migration": "0012_adaptive_interview.sql",
+  "promptVersions": {
+    "interview": "interview.v2"
+  },
+  "databaseObjects": {
+    "tables": [
+      "interview_question_batches",
+      "interview_questions",
+      "interview_question_events"
+    ],
+    "rpc": [
+      "ensure_adaptive_interview",
+      "record_interview_question_batch",
+      "save_adaptive_interview_answer",
+      "set_interview_question_status"
+    ]
+  },
+  "capabilities": [
+    "Persistent governed interview question catalog",
+    "Deterministic follow-up generation without OpenAI usage",
+    "Approved Interview Strategist v2 import",
+    "Fingerprint and semantic duplicate prevention",
+    "Question lifecycle: pending, answered, skipped, deferred, obsolete",
+    "Question explainability and artifact impact metadata",
+    "Question event audit trail",
+    "Adaptive answers incorporated into Project Model generation",
+    "Adaptive interview coverage included in Readiness"
+  ],
+  "validation": {
+    "eslint": "passed",
+    "typescript": "passed",
+    "tests": {
+      "passed": 24,
+      "failed": 0
+    },
+    "nextBuild": "passed",
+    "postgresParser": {
+      "passed": true,
+      "statements": 33
+    },
+    "newDependencies": 0
+  },
+  "changedFiles": [
+    "ADAPTIVE_INTERVIEW_V8.md",
+    "AI_INTEGRATION.md",
+    "ARCHITECTURE.md",
+    "DATA_MODEL.md",
+    "DELIVERY_NOTES.md",
+    "README.md",
+    "SECURITY.md",
+    "TEST_STRATEGY.md",
+    "VALIDATION_V8.md",
+    "agents/prompts.ts",
+    "agents/registry.ts",
+    "app/projects/[projectId]/analysis/actions.ts",
+    "app/projects/[projectId]/interview/actions.ts",
+    "app/projects/[projectId]/interview/interview-client.tsx",
+    "app/projects/[projectId]/interview/page.tsx",
+    "app/projects/[projectId]/page.tsx",
+    "app/projects/[projectId]/readiness/actions.ts",
+    "domain/interviews/interview.ts",
+    "schemas/agents/agent-outputs.ts",
+    "services/agents/project-agent-context.ts",
+    "services/interviews/generate-deterministic-interview-questions.ts",
+    "services/interviews/interview-fingerprint.ts",
+    "services/interviews/normalize-agent-interview-output.ts",
+    "services/project-model/generate-project-model.ts",
+    "supabase/migrations/0012_adaptive_interview.sql",
+    "supabase/tests/0012_adaptive_interview_verification.sql",
+    "tests/adaptive-interview.test.mjs",
+    "DELIVERY_MANIFEST_V8.json"
+  ]
+}

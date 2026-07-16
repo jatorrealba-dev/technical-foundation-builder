@@ -96,3 +96,118 @@ technical-foundation-builder/
 ## 8. Primer vertical slice técnico
 
 Crear cuenta → crear organización → crear proyecto → describir idea → generar preguntas → responder pregunta → extraer requisito → generar Product Spec parcial → mostrar readiness parcial.
+
+## Human-reviewed AI transaction boundary
+
+The application boundary for approved Project Model changes is PostgreSQL, not a sequence of independent Server Action writes.
+
+```text
+Next.js validates and generates payloads
+→ PostgreSQL RPC locks review
+→ Project Model write
+→ Project Model version trigger
+→ eight artifact writes
+→ artifact version triggers
+→ review and audit completion
+→ commit
+```
+
+This boundary prevents partial state when document regeneration or audit persistence fails. Model generation remains deterministic in application code; state transition and concurrency control remain in the database.
+
+## Project Model Governance boundary
+
+Governance v5 introduces a change-set boundary between probabilistic AI output and the Project Model source of truth.
+
+```text
+Agent output or manual editor
+→ deterministic diff service
+→ persisted change set
+→ decisions per change
+→ deterministic merge
+→ PostgreSQL transactional application
+→ selective artifact regeneration
+→ immutable version and provenance
+```
+
+Application code owns diffing, validation, deterministic merge and Markdown generation. PostgreSQL owns authorization, row locking, lifecycle transitions, persistence atomicity and audit lineage.
+
+The old whole-model AI application path is no longer executable by the authenticated role.
+
+## Consistency Engine v6 boundary
+
+Consistency analysis is separated into deterministic detection, probabilistic AI review and governed persistence.
+
+```text
+Project Model + artifacts + freshness states
+→ deterministic rules or approved Consistency Reviewer output
+→ normalized finding drafts
+→ PostgreSQL scan transaction
+→ fingerprint deduplication
+→ immutable scan snapshot
+→ persistent current finding state
+→ human lifecycle decision
+```
+
+Application code owns rule execution, artifact-name normalization and fingerprint generation. PostgreSQL owns project membership validation, AI-review validation, serialization, deduplication, recurrence handling and event audit.
+
+Consistency findings are advisory. They never mutate the Project Model or artifacts automatically.
+
+## Readiness Dashboard v7 boundary
+
+Readiness is calculated outside PostgreSQL and persisted through a strict transactional boundary.
+
+```text
+Project Model + interview + artifacts + freshness + consistency findings
+→ deterministic engine or approved Readiness Assessor output
+→ normalization and conservative scoring
+→ PostgreSQL validation RPC
+→ immutable assessment and dimension scores
+→ reviewable blockers and actions
+→ append-only lifecycle audit
+```
+
+Application code owns deterministic scoring, evidence interpretation, AI-output normalization and readiness-level mapping. PostgreSQL owns project membership validation, approved-run validation, source-run idempotency, payload constraints, persistence and owner/admin lifecycle transitions.
+
+Readiness never mutates the Project Model, artifacts or consistency findings. It is a derived, historical decision-support layer.
+
+## Adaptive Interview v8
+
+La capa de entrevista se divide en cuatro responsabilidades: catálogo persistente, reglas deterministas, importación gobernada de IA y RPC transaccionales. El contexto de agentes incluye preguntas, estados y el último diagnóstico para evitar repetición. El Project Model consume tanto respuestas base como adaptativas.
+
+## Collaboration and Teams v9 boundary
+
+Organization membership changes are protected by a PostgreSQL governance boundary.
+
+```text
+Next.js Server Action
+→ security-definer RPC
+→ actor role validation
+→ invitation or membership row lock
+→ lifecycle transition
+→ append-only membership event
+→ commit
+```
+
+Invitation secrets are generated once, returned to the creator and stored only as SHA-256 hashes. Acceptance validates authentication, normalized email, status and expiry in the same transaction that creates the membership.
+
+The dashboard supports multiple organization memberships explicitly. Project creation carries the selected organization ID rather than relying on the first membership returned by the database.
+
+Project-specific ACLs remain outside the v9 boundary.
+
+## Production Hardening v10 boundary
+
+Agent execution now crosses a reservation boundary before any provider request:
+
+```text
+Server Action
+→ load authorized project context
+→ reserve_agent_run
+→ atomic budget and concurrency checks
+→ OpenAI execution with policy timeout
+→ complete_agent_run or fail_agent_run
+→ structured correlation log
+```
+
+PostgreSQL is authoritative for organization policy, active-run serialization, usage limits and terminal run transitions. Application code owns provider invocation, output validation, timeout observation, error sanitization and structured logs.
+
+Health checks are split into liveness (`/api/health`) and dependency readiness (`/api/health/ready`). The readiness endpoint calls a minimal anonymous database RPC and reports only operational status.

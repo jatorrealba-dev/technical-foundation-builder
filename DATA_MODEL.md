@@ -275,3 +275,145 @@ Los documentos no se sobreescriben sin historial. Cada generación crea una vers
 - package_generated
 - exported
 - archived
+
+## Project Model version history
+
+`project_model_versions` is an immutable snapshot table created by migration 0008.
+
+Important fields:
+
+- `project_model_id`
+- `project_id`
+- `version_number`
+- model JSON collections
+- `source_run_id`
+- `source_review_id`
+- `restored_from_version_id`
+- `change_reason`
+- `created_by`
+- `created_at`
+
+The active state remains in `project_models`. Every relevant insert or update creates a new immutable version through `capture_project_model_version`.
+
+## Project Model Governance v5
+
+### project_model_change_sets
+
+Represents a governed proposal originating from an AI run or a manual edit.
+
+Important fields:
+
+- `project_id`
+- `source_type`
+- `source_run_id`
+- `source_review_id`
+- `base_model_version_id`
+- `resulting_model_version_id`
+- `status`
+- change counts
+- `application_summary`
+- actor and timestamps
+
+### project_model_changes
+
+Represents one reviewable operation against a Project Model collection or its general status.
+
+Important fields:
+
+- `change_set_id`
+- `category`
+- `operation`
+- `entity_key`
+- `before_value`
+- `after_value`
+- `decision`
+- reviewer metadata
+- `impacted_artifact_types`
+
+### project_artifact_states
+
+Tracks whether a generated artifact is current and the Project Model version on which it is based.
+
+### project_model_versions
+
+Governance v5 adds `source_change_set_id`, linking every governed model version to the proposal that produced it.
+
+## Consistency Engine v6
+
+### consistency_scans
+
+Immutable metadata for deterministic and AI-assisted scans, including source run, Project Model version, structured summary and severity counts.
+
+### consistency_findings
+
+Deduplicated current state keyed by `project_id + fingerprint`. It stores the latest evidence, severity, category, recommendation, lifecycle status, occurrence count and review metadata.
+
+### consistency_scan_findings
+
+Immutable many-to-many snapshot linking each scan to the exact finding content observed at that time.
+
+### consistency_finding_events
+
+Append-only lifecycle audit for creation, recurrence, automatic reopening and human status changes.
+
+A resolved finding is reopened when the same fingerprint appears in a later scan. Scan snapshots remain immutable.
+
+## Readiness Dashboard v7
+
+### readiness_assessments
+
+Immutable assessment header containing:
+
+- project and optional source agent run;
+- Project Model version provenance;
+- overall score and readiness level;
+- summary and optional AI confidence;
+- blocker counts by priority;
+- evidence snapshot;
+- creator and timestamp.
+
+### readiness_dimension_scores
+
+Exactly eight immutable rows per assessment, one for each readiness dimension. Each row stores score, rationale, evidence and gaps.
+
+### readiness_blockers
+
+Assessment-specific blockers with dimension, priority, evidence and a governed lifecycle: `open`, `accepted`, `resolved` or `dismissed`.
+
+### readiness_actions
+
+Assessment-specific next actions with suggested owner, expected outcome, priority and lifecycle: `pending`, `in_progress`, `completed` or `dismissed`.
+
+### readiness_review_events
+
+Append-only audit events for blocker and action state transitions.
+
+AI assessments use a partial unique index on `source_run_id`, guaranteeing that one Readiness Assessor execution cannot be imported more than once.
+
+## Adaptive Interview v8
+
+- `interview_question_batches`: snapshot del diagnóstico determinista o de IA.
+- `interview_questions`: catálogo gobernado por proyecto y sesión.
+- `interview_question_events`: auditoría inmutable de cambios de estado y respuestas.
+
+`interview_answers.question_id` continúa usando identificadores estables; las preguntas adaptativas generan IDs derivados de su fingerprint.
+
+## Collaboration and Teams v9
+
+### organization_members
+
+Adds:
+
+- normalized `email` for team display and invitation conflict checks;
+- `invited_by` provenance;
+- `updated_at` lifecycle tracking.
+
+### organization_invitations
+
+Stores organization, normalized invited email, role, SHA-256 token hash, lifecycle status, inviter, accepter, expiry and timestamps. A partial unique index permits only one pending invitation per organization and email.
+
+### organization_membership_events
+
+Append-only audit for invitation creation, revocation, expiry and acceptance; member addition, role changes, removal and voluntary exit; and ownership transfer.
+
+The event row preserves subject email, role transition and optional metadata even when the membership or invitation is later removed.

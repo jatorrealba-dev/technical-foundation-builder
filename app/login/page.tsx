@@ -16,6 +16,7 @@ type LoginPageProps = {
   searchParams: Promise<{
     error?: string;
     message?: string;
+    next?: string;
   }>;
 };
 
@@ -34,6 +35,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         <CardContent>
           <form action={signInAction} className="space-y-5">
+            {params.next ? (
+              <input type="hidden" name="next" value={params.next} />
+            ) : null}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -75,7 +79,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
             ¿No tienes cuenta?{" "}
-            <Link href="/register" className="font-medium text-foreground underline">
+            <Link
+              href={params.next ? `/register?next=${encodeURIComponent(params.next)}` : "/register"}
+              className="font-medium text-foreground underline"
+            >
               Crear cuenta
             </Link>
           </div>

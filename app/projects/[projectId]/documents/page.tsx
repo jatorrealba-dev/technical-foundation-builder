@@ -66,6 +66,14 @@ type ArtifactVersionReferenceRow = {
   artifact_id: string;
 };
 
+type ArtifactStateRow = {
+  artifact_type: ArtifactType;
+  status: "current" | "outdated" | "regenerating" | "failed";
+  based_on_model_version: number | null;
+  reason: string | null;
+  updated_at: string;
+};
+
 function mapArtifact(row: ArtifactRow): GeneratedArtifact {
   return {
     id: row.id,
@@ -293,6 +301,24 @@ export default async function ProjectDocumentsPage({
     (artifactRows ?? []) as unknown as ArtifactRow[]
   ).map(mapArtifact);
 
+  const { data: artifactStateRows, error: artifactStatesError } =
+    await supabase
+      .from("project_artifact_states")
+      .select(
+        "artifact_type, status, based_on_model_version, reason, updated_at"
+      )
+      .eq("project_id", projectId);
+
+  if (artifactStatesError) {
+    throw new Error(artifactStatesError.message);
+  }
+
+  const artifactStateByType = new Map(
+    ((artifactStateRows ?? []) as unknown as ArtifactStateRow[]).map(
+      (state) => [state.artifact_type, state]
+    )
+  );
+
   const artifactIds = artifacts.map(
     (artifact) => artifact.id
   );
@@ -489,6 +515,10 @@ export default async function ProjectDocumentsPage({
                 item.type === definition.type
             );
 
+            const artifactState = artifactStateByType.get(
+              definition.type
+            );
+
             const versionCount = artifact
               ? versionCountByArtifactId.get(
                   artifact.id
@@ -516,6 +546,26 @@ export default async function ProjectDocumentsPage({
                         <Badge variant="outline">
                           markdown
                         </Badge>
+
+                        {artifactState ? (
+                          <Badge
+                            variant={
+                              artifactState.status === "current"
+                                ? "default"
+                                : artifactState.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                          >
+                            {artifactState.status === "current"
+                              ? `Vigente · modelo v${artifactState.based_on_model_version ?? "—"}`
+                              : artifactState.status === "outdated"
+                                ? "Desactualizado"
+                                : artifactState.status === "regenerating"
+                                  ? "Regenerando"
+                                  : "Regeneración fallida"}
+                          </Badge>
+                        ) : null}
 
                         {artifact ? (
                           <Badge variant="secondary">

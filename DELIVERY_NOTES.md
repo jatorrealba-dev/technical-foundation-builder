@@ -93,7 +93,7 @@ npx supabase db push
 ```text
 AI_AGENTS_ENABLED=true
 OPENAI_API_KEY=...
-OPENAI_AGENT_MODEL=gpt-5.6
+OPENAI_AGENT_MODEL=<configured-model>
 OPENAI_AGENTS_TRACING_ENABLED=false
 ```
 
@@ -115,3 +115,47 @@ npm run dev
 - No se incluyeron claves ni archivos `.env`.
 - Las ejecuciones largas siguen siendo síncronas; antes de producción deben moverse a un workflow runner o background job.
 - Falta implementar aprobación por campo, diffs contra el Project Model, presupuestos por organización, rate limiting y evaluaciones de regresión.
+
+## Human review phase
+
+Added migration `0007_agent_run_human_review.sql` and a controlled review workflow in `/projects/[projectId]/agents`.
+
+The Project Model Analyst is the only agent whose approved output can be applied automatically in this phase. Applying it regenerates the complete document package and relies on artifact version triggers to preserve prior content. All other agents are reviewable but advisory.
+
+## Stabilization v4 delivery
+
+Added migration `0008_stabilize_human_review_workflow.sql`, transactional AI application, Project Model history/restoration, permission-aware review UI, impact previews, automated domain tests, and CI.
+
+Apply the migration and complete the connected checks in `STABILIZATION_V4.md` before merging this release into the production branch.
+
+## Project Model Governance v5 delivery
+
+Added migration `0009_project_model_governance.sql`, granular AI change proposals, a full Project Model editor, selective document regeneration, artifact freshness provenance, change-set audit lineage and nine deterministic tests.
+
+Apply migration 0009 before opening the new governance routes. Complete the connected checks in `VALIDATION_V5.md` before merging the release.
+
+## Consistency Engine v6 delivery
+
+Added migration `0010_consistency_engine.sql`, deterministic consistency rules, import of approved Consistency Reviewer results, deduplicated finding lifecycle, immutable scan snapshots, event audit, project dashboard integration and fourteen deterministic tests.
+
+Apply migration 0010 before opening the consistency routes. Complete the connected checks in `VALIDATION_V6.md` before merging the release.
+
+## v7 — Readiness Dashboard
+
+- Added deterministic readiness engine with eight dimensions.
+- Added immutable readiness assessments and historical trend.
+- Added persistent blockers and next actions.
+- Added owner/admin lifecycle review with audit events.
+- Added one-time import of approved Readiness Assessor runs.
+- Bumped Readiness Assessor prompt to `readiness.v2`.
+- Added artifact freshness and active consistency findings to AI context.
+- Added 5 readiness tests; total deterministic tests: 19.
+- Added migration `0011_readiness_dashboard.sql` and connected verification queries.
+
+## v8 — Adaptive Interview
+
+Se sustituyó el flujo de siete preguntas estáticas por un catálogo gobernado compatible con las preguntas base. Se añadieron seguimientos deterministas, importación aprobada de Interview Strategist v2, deduplicación, lifecycle de preguntas, auditoría e integración con Project Model y Readiness.
+
+## v9 — Collaboration and Teams
+
+Adds secure shareable organization invitations, team management, role transitions, ownership transfer, membership exit, audit events and multi-organization switching. No external email service or project-specific ACL is introduced in this release.

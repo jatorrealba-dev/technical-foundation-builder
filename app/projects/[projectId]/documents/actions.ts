@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  artifactCatalog,
   getArtifactDefinition,
 } from "@/domain/artifacts/artifact-catalog";
 import type {
@@ -18,23 +17,15 @@ import type {
 } from "@/domain/projects/project";
 import type { ProjectModel } from "@/domain/project-model/project-model";
 import { createClient } from "@/lib/supabase/server";
-import { generateArchitectureMarkdown } from "@/services/artifacts/generate-architecture";
-import { generateBacklogMarkdown } from "@/services/artifacts/generate-backlog";
-import { generateDataModelMarkdown } from "@/services/artifacts/generate-data-model";
-import { generateDomainModelMarkdown } from "@/services/artifacts/generate-domain-model";
-import { generateMvpScopeMarkdown } from "@/services/artifacts/generate-mvp-scope";
-import { generateProductSpecMarkdown } from "@/services/artifacts/generate-product-spec";
-import { generateSecurityMarkdown } from "@/services/artifacts/generate-security";
-import { generateVerticalSlicePlanMarkdown } from "@/services/artifacts/generate-vertical-slice-plan";
+import {
+  generateArtifactContent,
+  generateArtifactPayloads,
+} from "@/services/artifacts/generate-artifact-payloads";
 
 type GenerateDocumentInput = {
   projectId: string;
 };
 
-type ArtifactGenerator = (input: {
-  project: FoundationProject;
-  model: ProjectModel;
-}) => string;
 
 export type GenerateDocumentResult =
   | {
@@ -91,21 +82,6 @@ type ArtifactRow = {
   content: string;
   created_at: string;
   updated_at: string;
-};
-
-const artifactGenerators: Record<
-  ArtifactType,
-  ArtifactGenerator
-> = {
-  product_spec: generateProductSpecMarkdown,
-  mvp_scope: generateMvpScopeMarkdown,
-  domain_model: generateDomainModelMarkdown,
-  architecture: generateArchitectureMarkdown,
-  data_model: generateDataModelMarkdown,
-  security: generateSecurityMarkdown,
-  backlog: generateBacklogMarkdown,
-  vertical_slice_plan:
-    generateVerticalSlicePlanMarkdown,
 };
 
 function mapProject(row: ProjectRow): FoundationProject {
@@ -270,10 +246,8 @@ async function generateDocument(
   const definition =
     getArtifactDefinition(artifactType);
 
-  const generateContent =
-    artifactGenerators[artifactType];
-
-  const content = generateContent({
+  const content = generateArtifactContent({
+    type: artifactType,
     project: context.project,
     model: context.model,
   });
@@ -337,25 +311,11 @@ export async function generatePackageAction(
 
   const now = new Date().toISOString();
 
-  const artifactPayloads = artifactCatalog.map(
-    (definition) => {
-      const generateContent =
-        artifactGenerators[definition.type];
-
-      return {
-        project_id: projectId,
-        type: definition.type,
-        title: definition.title,
-        filename: definition.filename,
-        format: "markdown" as const,
-        content: generateContent({
-          project: context.project,
-          model: context.model,
-        }),
-        updated_at: now,
-      };
-    }
-  );
+  const artifactPayloads = generateArtifactPayloads({
+    project: context.project,
+    model: context.model,
+    updatedAt: now,
+  });
 
   const {
     data: artifactRows,

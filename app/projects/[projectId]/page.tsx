@@ -18,6 +18,7 @@ import {
 } from "@/domain/artifacts/artifact-catalog";
 import type { ArtifactType } from "@/domain/artifacts/artifact";
 import { initialInterviewQuestions } from "@/domain/interviews/interview";
+import { getReadinessLevelLabel, type ReadinessLevel } from "@/domain/readiness/readiness";
 import { createClient } from "@/lib/supabase/server";
 
 type ProjectDetailPageProps = {
@@ -28,6 +29,7 @@ type ProjectDetailPageProps = {
 
 type ProjectRow = {
   id: string;
+  organization_id: string;
   name: string;
   description: string;
   industry: string;
@@ -53,6 +55,23 @@ type ArtifactSummaryRow = {
   type: ArtifactType;
   filename: string;
   updated_at: string;
+};
+
+type ConsistencyScanSummaryRow = {
+  finding_count: number;
+  critical_count: number;
+  high_count: number;
+  project_model_version_number: number | null;
+  created_at: string;
+};
+
+type ReadinessAssessmentSummaryRow = {
+  overall_score: number;
+  level: ReadinessLevel;
+  blocker_count: number;
+  critical_blocker_count: number;
+  high_blocker_count: number;
+  created_at: string;
 };
 
 function formatDate(value: string): string {
@@ -123,7 +142,7 @@ export default async function ProjectDetailPage({
   const { data: project, error: projectError } = await supabase
     .from("projects")
     .select(
-      "id, name, description, industry, product_type, technical_level, main_goal, status, created_at"
+      "id, organization_id, name, description, industry, product_type, technical_level, main_goal, status, created_at"
     )
     .eq("id", projectId)
     .maybeSingle();
@@ -174,21 +193,37 @@ export default async function ProjectDetailPage({
     sessionData as unknown as InterviewSessionRow | null;
 
   let answeredCount = 0;
+  let governedQuestionCount = 0;
+  let resolvedQuestionCount = 0;
 
   if (interviewSession) {
-    const { count, error: answersError } = await supabase
-      .from("interview_answers")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
-      .eq("interview_session_id", interviewSession.id);
+    const [answersResult, questionsResult] = await Promise.all([
+      supabase
+        .from("interview_answers")
+        .select("id", { count: "exact", head: true })
+        .eq("interview_session_id", interviewSession.id),
+      supabase
+        .from("interview_questions")
+        .select("status")
+        .eq("project_id", projectRow.id)
+        .neq("status", "obsolete"),
+    ]);
 
-    if (answersError) {
-      throw new Error(answersError.message);
+    if (answersResult.error) {
+      throw new Error(answersResult.error.message);
     }
 
-    answeredCount = count ?? 0;
+    if (questionsResult.error) {
+      throw new Error(questionsResult.error.message);
+    }
+
+    answeredCount = answersResult.count ?? 0;
+    const governedQuestions = questionsResult.data ?? [];
+    governedQuestionCount = governedQuestions.length;
+    resolvedQuestionCount = governedQuestions.filter(
+      (question) =>
+        question.status === "answered" || question.status === "skipped"
+    ).length;
   }
 
   const { data: projectModelData, error: projectModelError } =
@@ -223,6 +258,48 @@ export default async function ProjectDetailPage({
     (artifactsData ?? []) as unknown as ArtifactSummaryRow[]
   );
 
+  const {
+    data: consistencyScanData,
+    error: consistencyScanError,
+  } = await supabase
+    .from("consistency_scans")
+    .select(
+      "finding_count, critical_count, high_count, project_model_version_number, created_at"
+    )
+    .eq("project_id", projectRow.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (consistencyScanError) {
+    throw new Error(consistencyScanError.message);
+  }
+
+  const latestConsistencyScan = consistencyScanData
+    ? consistencyScanData as unknown as ConsistencyScanSummaryRow
+    : null;
+
+  const {
+    data: readinessAssessmentData,
+    error: readinessAssessmentError,
+  } = await supabase
+    .from("readiness_assessments")
+    .select(
+      "overall_score, level, blocker_count, critical_blocker_count, high_blocker_count, created_at"
+    )
+    .eq("project_id", projectRow.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (readinessAssessmentError) {
+    throw new Error(readinessAssessmentError.message);
+  }
+
+  const latestReadinessAssessment = readinessAssessmentData
+    ? readinessAssessmentData as unknown as ReadinessAssessmentSummaryRow
+    : null;
+
   const generatedArtifactTypes = new Set(
     artifacts.map((artifact) => artifact.type)
   );
@@ -243,14 +320,23 @@ export default async function ProjectDetailPage({
 
   const latestArtifact = artifacts[0] ?? null;
 
-  const totalQuestions = initialInterviewQuestions.length;
+  const totalQuestions =
+    governedQuestionCount > 0
+      ? governedQuestionCount
+      : initialInterviewQuestions.length;
 
   const interviewCompletion =
     totalQuestions === 0
       ? 0
       : Math.min(
           100,
-          Math.round((answeredCount / totalQuestions) * 100)
+          Math.round(
+            ((governedQuestionCount > 0
+              ? resolvedQuestionCount
+              : answeredCount) /
+              totalQuestions) *
+              100
+          )
         );
 
   const interviewStatus =
@@ -284,7 +370,7 @@ export default async function ProjectDetailPage({
       <section className="mx-auto w-full max-w-6xl px-6 py-10">
         <div className="mb-8">
           <Button variant="ghost" asChild>
-            <Link href="/dashboard">
+            <Link href={`/dashboard?organizationId=${projectRow.organization_id}`}>
               ← Volver al dashboard
             </Link>
           </Button>
@@ -323,6 +409,18 @@ export default async function ProjectDetailPage({
                 {documentsButtonLabel}
               </Button>
             )}
+
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${projectRow.id}/readiness`}>
+                Readiness
+              </Link>
+            </Button>
+
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${projectRow.id}/consistency`}>
+                Consistencia
+              </Link>
+            </Button>
 
             <Button variant="outline" asChild>
               <Link href={`/projects/${projectRow.id}/agents`}>
@@ -439,8 +537,7 @@ export default async function ProjectDetailPage({
                   </p>
 
                   <p>
-                    {answeredCount} de {totalQuestions} preguntas
-                    respondidas.
+                    {answeredCount} respondidas de {totalQuestions} preguntas activas.
                   </p>
                 </div>
 
@@ -490,6 +587,119 @@ export default async function ProjectDetailPage({
                     Todavía no se ha generado el análisis inicial.
                   </p>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>
+                      Consistencia
+                    </CardTitle>
+
+                    <CardDescription className="mt-2">
+                      Última verificación entre el Project Model y el paquete técnico.
+                    </CardDescription>
+                  </div>
+
+                  <Badge
+                    variant={
+                      latestConsistencyScan &&
+                      latestConsistencyScan.critical_count +
+                        latestConsistencyScan.high_count > 0
+                        ? "destructive"
+                        : latestConsistencyScan
+                          ? "default"
+                          : "outline"
+                    }
+                  >
+                    {latestConsistencyScan
+                      ? `${latestConsistencyScan.finding_count} hallazgos`
+                      : "Sin analizar"}
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {latestConsistencyScan ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Críticos y altos: {latestConsistencyScan.critical_count + latestConsistencyScan.high_count}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Último análisis: {formatDate(latestConsistencyScan.created_at)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Ejecuta el motor determinista o importa un Consistency Reviewer aprobado.
+                  </p>
+                )}
+
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={`/projects/${projectRow.id}/consistency`}>
+                    Revisar consistencia
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>
+                      Readiness
+                    </CardTitle>
+
+                    <CardDescription className="mt-2">
+                      Preparación de implementación por dimensión y bloqueadores.
+                    </CardDescription>
+                  </div>
+
+                  <Badge
+                    variant={
+                      latestReadinessAssessment &&
+                      latestReadinessAssessment.overall_score >= 75
+                        ? "default"
+                        : latestReadinessAssessment
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {latestReadinessAssessment
+                      ? `${latestReadinessAssessment.overall_score}/100`
+                      : "Sin evaluar"}
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {latestReadinessAssessment ? (
+                  <>
+                    <Progress value={latestReadinessAssessment.overall_score} />
+                    <p className="text-sm text-muted-foreground">
+                      {getReadinessLevelLabel(latestReadinessAssessment.level)} · {latestReadinessAssessment.blocker_count} bloqueadores
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Críticos y altos: {latestReadinessAssessment.critical_blocker_count + latestReadinessAssessment.high_blocker_count}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Última evaluación: {formatDate(latestReadinessAssessment.created_at)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Ejecuta una evaluación determinista o importa un Readiness Assessor aprobado.
+                  </p>
+                )}
+
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={`/projects/${projectRow.id}/readiness`}>
+                    Revisar readiness
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
 

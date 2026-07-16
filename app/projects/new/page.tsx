@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createProjectAction } from "@/app/projects/actions";
-import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { createClient } from "@/lib/supabase/server";
 
 const productTypes = [
   { value: "saas", label: "SaaS" },
@@ -36,8 +36,23 @@ const technicalLevels = [
 type NewProjectPageProps = {
   searchParams: Promise<{
     error?: string;
+    organizationId?: string;
   }>;
 };
+
+type MembershipRow = {
+  organization_id: string;
+  organizations:
+    | { id: string; name: string }
+    | { id: string; name: string }[]
+    | null;
+};
+
+function getOrganization(membership: MembershipRow) {
+  return Array.isArray(membership.organizations)
+    ? membership.organizations[0] ?? null
+    : membership.organizations;
+}
 
 export default async function NewProjectPage({
   searchParams,
@@ -53,37 +68,40 @@ export default async function NewProjectPage({
     redirect("/login");
   }
 
-  const { data: membership, error: membershipError } = await supabase
+  const { data: membershipsData, error: membershipError } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("organization_id, organizations(id, name)")
     .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
   if (membershipError) {
     throw new Error(membershipError.message);
   }
 
-  if (!membership) {
+  const memberships = (membershipsData ?? []) as unknown as MembershipRow[];
+
+  if (memberships.length === 0) {
     redirect("/onboarding");
   }
 
-  const { data: organization, error: organizationError } = await supabase
-    .from("organizations")
-    .select("name")
-    .eq("id", membership.organization_id)
-    .maybeSingle();
+  const membership =
+    memberships.find(
+      (item) => item.organization_id === params.organizationId
+    ) ?? memberships[0];
+  const organization = getOrganization(membership);
 
-  if (organizationError) {
-    throw new Error(organizationError.message);
+  if (!organization) {
+    redirect("/onboarding");
   }
+
+  const dashboardPath = `/dashboard?organizationId=${organization.id}`;
 
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto w-full max-w-4xl px-6 py-10">
         <div className="mb-8">
           <Button variant="ghost" asChild>
-            <Link href="/dashboard">← Volver al dashboard</Link>
+            <Link href={dashboardPath}>← Volver al dashboard</Link>
           </Button>
         </div>
 
@@ -93,7 +111,7 @@ export default async function NewProjectPage({
             <CardDescription>
               Este proyecto se guardará en Supabase dentro de{" "}
               <span className="font-medium text-foreground">
-                {organization?.name ?? "tu organización"}
+                {organization.name}
               </span>
               .
             </CardDescription>
@@ -101,6 +119,12 @@ export default async function NewProjectPage({
 
           <CardContent>
             <form action={createProjectAction} className="space-y-6">
+              <input
+                type="hidden"
+                name="organizationId"
+                value={organization.id}
+              />
+
               <div className="grid gap-2">
                 <Label htmlFor="name">Nombre del proyecto</Label>
                 <Input
@@ -186,7 +210,7 @@ export default async function NewProjectPage({
 
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" asChild>
-                  <Link href="/dashboard">Cancelar</Link>
+                  <Link href={dashboardPath}>Cancelar</Link>
                 </Button>
 
                 <Button type="submit">Crear proyecto</Button>

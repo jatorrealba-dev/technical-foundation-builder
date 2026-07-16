@@ -1,0 +1,182 @@
+{
+  "release": "Consistency Engine v6",
+  "baseRelease": "Project Model Governance v5",
+  "migration": "0010_consistency_engine.sql",
+  "newRoutes": [
+    "/projects/[projectId]/consistency",
+    "/projects/[projectId]/consistency/scans/[scanId]"
+  ],
+  "databaseObjects": {
+    "tables": [
+      "consistency_scans",
+      "consistency_findings",
+      "consistency_scan_findings",
+      "consistency_finding_events"
+    ],
+    "functions": [
+      "record_consistency_scan",
+      "review_consistency_finding"
+    ]
+  },
+  "capabilities": [
+    "deterministic consistency scans without API usage",
+    "approved Consistency Reviewer import",
+    "finding fingerprint deduplication and recurrence counting",
+    "immutable scan snapshots",
+    "open, accepted, dismissed and resolved lifecycle",
+    "automatic reopening of recurring resolved findings",
+    "owner/admin finding governance",
+    "RLS-protected read access and RPC-only writes",
+    "project and agent navigation integration"
+  ],
+  "validation": {
+    "eslint": "passed",
+    "typescript": "passed",
+    "tests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "nextBuild": "passed",
+    "sqlParse": {
+      "passed": true,
+      "statements": 46
+    },
+    "npmAudit": {
+      "critical": 0,
+      "high": 0,
+      "moderate": 2,
+      "low": 0
+    },
+    "incrementalApplyTest": {
+      "passed": true,
+      "sourceFilesCompared": 171
+    },
+    "releaseSecretScan": "passed"
+  },
+  "files": [
+    {
+      "path": "ARCHITECTURE.md",
+      "bytes": 5124,
+      "sha256": "d2095e1dab58537ef46f4905d20bc633ef5b14227a675d4556aa99758cad6a8c"
+    },
+    {
+      "path": "CONSISTENCY_ENGINE_V6.md",
+      "bytes": 3788,
+      "sha256": "f0a8bc5c0d89ad70e1a9f5a8a72cf85647bc36bc1bd237916d1dd478ee9d4887"
+    },
+    {
+      "path": "DATA_MODEL.md",
+      "bytes": 7565,
+      "sha256": "b6cdc16bda2f120c6508bf7a337d094889baba413490583f3aca7a455fdd8623"
+    },
+    {
+      "path": "DELIVERY_NOTES.md",
+      "bytes": 4678,
+      "sha256": "8d905876c259f7ef7b8e63e1dbd0e5822677cc2afbc12c01d8b8eea621edfba8"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3143,
+      "sha256": "325d31fdabdea6c8aad7e7bac9e09613e97a87b3b0d0b55b42785af733673534"
+    },
+    {
+      "path": "SECURITY.md",
+      "bytes": 5065,
+      "sha256": "74d2105929be182449d604bbce1b2d4376cb97454bb7832485c8063f2e39d56f"
+    },
+    {
+      "path": "TEST_STRATEGY.md",
+      "bytes": 3604,
+      "sha256": "574b0792bd8d9af00d8e927de84c5d6bad3d7b1d1a115d53e78b9fa9fc1b6643"
+    },
+    {
+      "path": "VALIDATION_V6.md",
+      "bytes": 1954,
+      "sha256": "7aaeb214bdd8efe16196cae1bb0d118a085a2a94a0d717b589bed8cec7b98245"
+    },
+    {
+      "path": "app/projects/[projectId]/agents/page.tsx",
+      "bytes": 34637,
+      "sha256": "60f9cf33b568ffc7831fba500c872bcf95ed2ee8619edee0bb3e322db5fc6fa2"
+    },
+    {
+      "path": "app/projects/[projectId]/agents/review-controls.tsx",
+      "bytes": 6352,
+      "sha256": "99687a230cfe8b3dda4e77e5aebe241a488f005d4ac317e4b64e45264c3ce8af"
+    },
+    {
+      "path": "app/projects/[projectId]/analysis/page.tsx",
+      "bytes": 18489,
+      "sha256": "e382bed78bafc5e7f70696c3fd1d599eee82a981b2bb4879b1c4f856a5601157"
+    },
+    {
+      "path": "app/projects/[projectId]/consistency/actions.ts",
+      "bytes": 11799,
+      "sha256": "4c786b65054b1f9d5f050f15975941e2e8b3ebcd3bcbd3844616b5d8535930ac"
+    },
+    {
+      "path": "app/projects/[projectId]/consistency/finding-review-controls.tsx",
+      "bytes": 2632,
+      "sha256": "8e1d07c03bdf18fe9a5c7802c024b5a9376e3650745378d0ac684d7fa945afaa"
+    },
+    {
+      "path": "app/projects/[projectId]/consistency/page.tsx",
+      "bytes": 31534,
+      "sha256": "16f887a10e33dd523a5e3f1a03a7997997c034a97128cb0903e1a701dc21e503"
+    },
+    {
+      "path": "app/projects/[projectId]/consistency/scan-action-buttons.tsx",
+      "bytes": 649,
+      "sha256": "962f73199607268975d6a135e0e6446cc1767d8a9ce1de2c4046601fb2dbde21"
+    },
+    {
+      "path": "app/projects/[projectId]/consistency/scans/[scanId]/page.tsx",
+      "bytes": 9569,
+      "sha256": "2b49e4c6b3caa1451e9d789537607178881e18cc31686272726d42ffe308c09b"
+    },
+    {
+      "path": "app/projects/[projectId]/page.tsx",
+      "bytes": 20206,
+      "sha256": "9a7e90e719095f84bb3ce7ea6e089583c32cfaa2707a310d3572a5d079d33efd"
+    },
+    {
+      "path": "domain/consistency/consistency.ts",
+      "bytes": 2214,
+      "sha256": "beffad2625bd2885b5c2b08a12d6b14a1f0daaf46c3db3fa62b72877165885b8"
+    },
+    {
+      "path": "services/consistency/consistency-fingerprint.ts",
+      "bytes": 1182,
+      "sha256": "0cce2ad6295e131370f3edc3d0fe147c6a49fe6f4e4c3b4ae9db8bb9fa6eec1f"
+    },
+    {
+      "path": "services/consistency/generate-deterministic-findings.ts",
+      "bytes": 12921,
+      "sha256": "d9d4d4da3b2b8c66b91bbf5379c186aa64f2ca81b701d18f4fb9da7c27d0fd6a"
+    },
+    {
+      "path": "services/consistency/normalize-agent-consistency-output.ts",
+      "bytes": 1942,
+      "sha256": "bcafafd0228df1939c5c5d79abcfa6ab4a3025fb3bae4f16b6cde82d7e537d31"
+    },
+    {
+      "path": "supabase/migrations/0010_consistency_engine.sql",
+      "bytes": 28600,
+      "sha256": "6c4aeead73a83b836634aaaa04602a8c376e38fa25000d931bb4e9c51baee9d2"
+    },
+    {
+      "path": "supabase/tests/0010_consistency_engine_verification.sql",
+      "bytes": 2760,
+      "sha256": "c9253c80bed31830e6a7f587659c605695b6f337ae5bcd9480cf62ebd4edf1f1"
+    },
+    {
+      "path": "tests/consistency-engine.test.mjs",
+      "bytes": 5422,
+      "sha256": "df9385b2a996ad9cc9177609844415b32cc53ef6de013b336e93d6612dc682f6"
+    }
+  ],
+  "releaseArtifacts": {
+    "fullArchive": "technical-foundation-builder-consistency-v6.zip",
+    "incrementalArchive": "technical-foundation-builder-consistency-v6-update.zip"
+  }
+}

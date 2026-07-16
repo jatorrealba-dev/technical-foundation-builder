@@ -5,6 +5,7 @@ export type AiRuntimeConfiguration = {
   apiKey: string;
   model: string;
   tracingEnabled: boolean;
+  maxTurns: number;
 };
 
 export type AiConfigurationStatus = {
@@ -13,8 +14,24 @@ export type AiConfigurationStatus = {
   hasModel: boolean;
   model: string | null;
   tracingEnabled: boolean;
+  maxTurns: number;
   ready: boolean;
 };
+
+function parseBoundedInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
+  const parsed = Number.parseInt(value?.trim() ?? "", 10);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
 
 function isEnabled(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
@@ -35,12 +52,20 @@ export function getAiConfigurationStatus(): AiConfigurationStatus {
     process.env.OPENAI_AGENTS_TRACING_ENABLED
   );
 
+  const maxTurns = parseBoundedInteger(
+    process.env.AI_AGENT_MAX_TURNS,
+    3,
+    1,
+    10
+  );
+
   return {
     enabled,
     hasApiKey: apiKey.length > 0,
     hasModel: model.length > 0,
     model: model || null,
     tracingEnabled,
+    maxTurns,
     ready:
       enabled &&
       apiKey.length > 0 &&
@@ -80,5 +105,6 @@ export function requireAiRuntimeConfiguration(): AiRuntimeConfiguration {
     apiKey,
     model,
     tracingEnabled: status.tracingEnabled,
+    maxTurns: status.maxTurns,
   };
 }

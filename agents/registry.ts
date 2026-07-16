@@ -9,7 +9,7 @@ export const agentCatalog: readonly AgentDefinition[] = [
     name: "Interview Strategist",
     description:
       "Detecta vacíos y propone preguntas adaptativas sin repetir información ya confirmada.",
-    promptVersion: "interview.v1",
+    promptVersion: "interview.v2",
     requiresProjectModel: false,
     requiresArtifacts: false,
   },
@@ -54,7 +54,7 @@ export const agentCatalog: readonly AgentDefinition[] = [
     name: "Readiness Assessor",
     description:
       "Calcula preparación por dimensión, bloqueadores y siguientes acciones con evidencia explícita.",
-    promptVersion: "readiness.v1",
+    promptVersion: "readiness.v2",
     requiresProjectModel: true,
     requiresArtifacts: true,
   },

@@ -1,0 +1,44 @@
+{
+  "release": "Project Model Governance v5",
+  "migration": "0009_project_model_governance.sql",
+  "newRoutes": [
+    "/projects/[projectId]/analysis/edit",
+    "/projects/[projectId]/analysis/change-sets",
+    "/projects/[projectId]/analysis/change-sets/[changeSetId]"
+  ],
+  "newTables": [
+    "project_model_change_sets",
+    "project_model_changes",
+    "project_artifact_states"
+  ],
+  "newRpcFunctions": [
+    "create_project_model_change_set",
+    "review_project_model_change",
+    "apply_project_model_change_set",
+    "create_and_apply_manual_project_model_change_set",
+    "close_project_model_change_set"
+  ],
+  "legacyRpcRevoked": "apply_approved_project_model_run",
+  "automatedTests": 9,
+  "requiresConnectedValidation": true,
+  "validation": {
+    "eslint": "passed",
+    "typescript": "passed",
+    "tests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "nextBuild": "passed",
+    "postgresParserStatements": 57,
+    "remoteMigrationApplied": false
+  },
+  "safeguards": [
+    "granular_change_review",
+    "selective_artifact_regeneration",
+    "transactional_application",
+    "duplicate_application_lock",
+    "stale_change_set_rejection",
+    "stale_editor_rejection",
+    "project_model_version_lineage"
+  ]
+}

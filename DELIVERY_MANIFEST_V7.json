@@ -1,0 +1,135 @@
+{
+  "delivery": "Technical Foundation Builder — Readiness Dashboard v7",
+  "version": "v7",
+  "base": "Consistency Engine v6",
+  "date": "2026-07-15",
+  "migration": "supabase/migrations/0011_readiness_dashboard.sql",
+  "new_routes": [
+    "/projects/[projectId]/readiness",
+    "/projects/[projectId]/readiness/assessments/[assessmentId]"
+  ],
+  "validation": {
+    "eslint": "passed",
+    "typescript": "passed",
+    "tests": {
+      "passed": 19,
+      "failed": 0
+    },
+    "next_build": "passed",
+    "postgres_parse": {
+      "passed": true,
+      "statements": 56
+    },
+    "connected_supabase_validation": "required after migration push"
+  },
+  "included_files": [
+    {
+      "path": "AI_INTEGRATION.md",
+      "sha256": "95c06122156018b7b09d3a9ad09eb9764a17850bae33ebc3989017db5cf90d7d"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "9aa2979d41b01aa62d9a7ed28d6635cfa266cfa931b56d07abe796c97075856f"
+    },
+    {
+      "path": "DATA_MODEL.md",
+      "sha256": "199d2bda63282ae547b0a86a3a9d9a5e19886bf9a1169d536d606988b7f2e8d1"
+    },
+    {
+      "path": "DELIVERY_NOTES.md",
+      "sha256": "8be4796a27064d09d4c71695b3fb4465b2797e59d73d7cf1fb523b8a6a6a7979"
+    },
+    {
+      "path": "READINESS_DASHBOARD_V7.md",
+      "sha256": "e47067b6addac6f65b2d367623ef751f35e7549e42aa588ff28e184187f5bb0d"
+    },
+    {
+      "path": "README.md",
+      "sha256": "14a206e6dcd25d2c44b3220b10b0c287dbb750b98500367528a714ad658c71e2"
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "620c280c5eca4f7b0677bc3eb859bb007729995066c59599637d89404e5e66a4"
+    },
+    {
+      "path": "TEST_STRATEGY.md",
+      "sha256": "add24220fa7ad095e9bd05db10283fd61cfb79fdf237a7495f40a669f1604252"
+    },
+    {
+      "path": "VALIDATION_V7.md",
+      "sha256": "12389e0ec48346477a35e0d4d04a02cee2db107dbb139b54ba9797d9bed1b2d5"
+    },
+    {
+      "path": "agents/prompts.ts",
+      "sha256": "042f3a2aa3e71e4b3026803d92e12bc5ede290f1609d8009253f1c1db2b83198"
+    },
+    {
+      "path": "agents/registry.ts",
+      "sha256": "55edb89f4cee5658a56cb104a02745517c5f3e70eecd520407f40791b8ed1cb7"
+    },
+    {
+      "path": "app/projects/[projectId]/analysis/page.tsx",
+      "sha256": "475b39236b005670b011a929f1d9f88901958366213810cc4133fbbf54555212"
+    },
+    {
+      "path": "app/projects/[projectId]/page.tsx",
+      "sha256": "4732790be376355b327a7a74bc5629bd9f2484305dc4950a5d416dcb5267c8b2"
+    },
+    {
+      "path": "app/projects/[projectId]/readiness/actions.ts",
+      "sha256": "ce22cb894c78f8e6d5aa8c591884d736ef9910477a391828a309365974d293af"
+    },
+    {
+      "path": "app/projects/[projectId]/readiness/assessments/[assessmentId]/page.tsx",
+      "sha256": "38629c659dc6ac9d31b8c9c6f86e457fc532340e66a98f86258fda728f7c86a9"
+    },
+    {
+      "path": "app/projects/[projectId]/readiness/page.tsx",
+      "sha256": "c6ce9eba02cc11aa6801dc66557bf347cef4e540b7fe132e43ff1437c5136071"
+    },
+    {
+      "path": "app/projects/[projectId]/readiness/readiness-action-buttons.tsx",
+      "sha256": "44bf15f9bd667d79ae0abe19a5f691f658acc4e53299a4e973c68300c05c4d6e"
+    },
+    {
+      "path": "app/projects/[projectId]/readiness/readiness-review-controls.tsx",
+      "sha256": "7a0be3d093049f23cebf1d61ca6805b1a7b4dc8472afe4a788a228969a7534b4"
+    },
+    {
+      "path": "domain/readiness/readiness.ts",
+      "sha256": "a267e4ed8b53d1c126d3273403255e4d37ce7abc4c7c71f6d3be72d797fa3c0c"
+    },
+    {
+      "path": "schemas/agents/agent-outputs.ts",
+      "sha256": "07573af8229cba4e54eb3984377527cc622eeca78ca55038638eac7cd9a566c9"
+    },
+    {
+      "path": "services/agents/project-agent-context.ts",
+      "sha256": "bc42b198b9ac0524880aeca5225f01d6b318dece7d08b28806f95adc2070462b"
+    },
+    {
+      "path": "services/readiness/generate-deterministic-readiness.ts",
+      "sha256": "d16fb182ee0b54b69689d0b459e55beb37048d8e28617b1eaccb862ce6c9933b"
+    },
+    {
+      "path": "services/readiness/normalize-agent-readiness-output.ts",
+      "sha256": "b32691ae6d22cc6fef6fc42c9615767b05396603c094792872d5d6aaeb1ed3ff"
+    },
+    {
+      "path": "services/readiness/readiness-fingerprint.ts",
+      "sha256": "99e9000a8875a953e9da2a97f56aa89897bd5551b10efea7b8be47e051a5fe20"
+    },
+    {
+      "path": "supabase/migrations/0011_readiness_dashboard.sql",
+      "sha256": "6dc3e50cbf4e17d83317a78d81756d8127ed7687c0bc0239ed10ec8b7b2dcebc"
+    },
+    {
+      "path": "supabase/tests/0011_readiness_dashboard_verification.sql",
+      "sha256": "e226ac03ea9d07b09d5e094f4aa559532f1fd0a8e9e38f91f335ab705a9ce19f"
+    },
+    {
+      "path": "tests/readiness-engine.test.mjs",
+      "sha256": "0bb6a39bd082d55a91dbf0643f815c6b18bedd8e7c016f7a66ae1501d58f45c9"
+    }
+  ]
+}

@@ -16,9 +16,11 @@ Operating rules:
 
 const specializedInstructions: Record<AgentKey, string> = {
   interview: `
-Analyze the current project context and determine the smallest useful set of follow-up questions.
-Prioritize unresolved high-impact gaps, contradictions, security concerns, data boundaries, operational constraints, and acceptance criteria.
-Do not repeat questions that were already answered clearly.
+Analyze the current project context and determine the smallest useful set of adaptive follow-up questions.
+Treat the interview question catalog and its statuses as authoritative evidence of what was already asked, answered, skipped, deferred, or made obsolete.
+Prioritize unresolved high-impact gaps, contradictions, workflows, data lifecycle, authorization, security, architecture, operations, and acceptance criteria.
+Do not repeat semantically equivalent questions or reintroduce obsolete questions without explicit evidence.
+For every proposed question, explain why it is needed, which artifacts it affects, the risk area, whether it is required, and concise helper text.
 Recommend completion only when the context is sufficient to produce a reviewable Project Model.
 `.trim(),
 
@@ -49,9 +51,10 @@ Only report issues supported by the supplied context.
 `.trim(),
 
   readiness: `
-Assess implementation readiness across product, domain, architecture, data, security, testing, and delivery.
+Assess implementation readiness across product, domain, architecture, data, security, testing, delivery, and operations.
+Return exactly one dimension result for each of those eight keys.
 Scores must be evidence-based and conservative.
-Identify blockers and concrete next actions. A high score requires clear requirements, resolved critical risks, coherent artifacts, and a testable delivery path.
+Identify blockers and concrete next actions. A high score requires clear requirements, resolved critical risks, coherent artifacts, a testable delivery path, and explicit operational readiness for deployment, observability, recovery, and incident response.
 `.trim(),
 };
 

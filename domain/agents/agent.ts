@@ -16,6 +16,18 @@ export type AgentRunStatus =
   | "failed"
   | "cancelled";
 
+export type AgentReviewDecision =
+  | "pending"
+  | "approved"
+  | "rejected";
+
+export type AgentApplicationStatus =
+  | "not_applied"
+  | "applying"
+  | "applied"
+  | "failed"
+  | "not_applicable";
+
 export type AgentDefinition = {
   key: AgentKey;
   name: string;
@@ -45,8 +57,30 @@ export type AgentRunSummary = {
   createdAt: string;
 };
 
+export type AgentRunReview = {
+  id: string;
+  runId: string;
+  projectId: string;
+  decision: AgentReviewDecision;
+  reviewerComment: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  applicationStatus: AgentApplicationStatus;
+  applicationSummary: Record<string, unknown>;
+  appliedBy: string | null;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function isAgentKey(
   value: string
 ): value is AgentKey {
   return agentKeys.includes(value as AgentKey);
+}
+
+export function isAgentReviewDecision(
+  value: string
+): value is Exclude<AgentReviewDecision, "pending"> {
+  return value === "approved" || value === "rejected";
 }

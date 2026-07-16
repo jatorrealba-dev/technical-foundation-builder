@@ -1,0 +1,29 @@
+{
+  "release": "stabilization-v4",
+  "base": "human-review-v3",
+  "migration": "0008_stabilize_human_review_workflow.sql",
+  "newRoute": "/projects/[projectId]/analysis/history",
+  "validation": {
+    "eslint": "passed",
+    "typescript": "passed",
+    "tests": {
+      "passed": 6,
+      "failed": 0
+    },
+    "build": "passed",
+    "sqlStatementsParsed": 29,
+    "audit": {
+      "critical": 0,
+      "high": 0,
+      "moderate": 2,
+      "low": 0
+    }
+  },
+  "requiresUserIntervention": [
+    "apply migration 0008 to the linked Supabase project",
+    "validate one approved Project Model application",
+    "validate duplicate-application rejection",
+    "validate Project Model restoration",
+    "validate member read-only permissions"
+  ]
+}

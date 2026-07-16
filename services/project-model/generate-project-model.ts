@@ -27,6 +27,52 @@ function splitPossibleEntities(raw: string): string[] {
     .slice(0, 10);
 }
 
+
+function requirementTypeForStage(
+  stage: ProjectInterview["questions"][number]["stage"]
+): ProjectRequirement["type"] {
+  switch (stage) {
+    case "security":
+      return "security";
+    case "operations":
+    case "delivery":
+      return "operational";
+    case "architecture":
+    case "data":
+      return "non_functional";
+    default:
+      return "functional";
+  }
+}
+
+function buildAdaptiveRequirements(
+  interview: ProjectInterview
+): ProjectRequirement[] {
+  return interview.questions
+    .filter(
+      (question) =>
+        question.source !== "base" &&
+        question.status === "answered" &&
+        Boolean(getAnswer(interview, question.id))
+    )
+    .map((question) => ({
+      id: `req-${question.id}`,
+      title: question.question
+        .replace(/[¿?]/g, "")
+        .trim()
+        .slice(0, 120),
+      description: getAnswer(interview, question.id),
+      type: requirementTypeForStage(question.stage),
+      priority:
+        question.priority === "high"
+          ? "must"
+          : question.priority === "medium"
+            ? "should"
+            : "could",
+      status: "confirmed" as const,
+      sourceQuestionId: question.id,
+    }));
+}
 function buildRequirements(
   interview: ProjectInterview
 ): ProjectRequirement[] {
@@ -101,7 +147,10 @@ function buildRequirements(
     });
   }
 
-  return requirements;
+  return [
+    ...requirements,
+    ...buildAdaptiveRequirements(interview),
+  ];
 }
 
 function buildDomainEntities(
@@ -280,6 +329,30 @@ function buildOpenQuestions(
         priority: item.priority,
       });
     }
+  }
+
+  for (const question of interview.questions) {
+    if (
+      question.status !== "pending" &&
+      question.status !== "deferred"
+    ) {
+      continue;
+    }
+
+    if (!question.required && question.priority !== "high") {
+      continue;
+    }
+
+    if (openQuestions.some((item) => item.id === `open-${question.id}`)) {
+      continue;
+    }
+
+    openQuestions.push({
+      id: `open-${question.id}`,
+      question: question.question,
+      reason: question.reason || "La entrevista adaptativa marcó esta información como pendiente.",
+      priority: question.priority,
+    });
   }
 
   return openQuestions;

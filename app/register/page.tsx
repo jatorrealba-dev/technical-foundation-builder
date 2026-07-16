@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 type RegisterPageProps = {
   searchParams: Promise<{
     error?: string;
+    next?: string;
   }>;
 };
 
@@ -33,6 +34,9 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
 
         <CardContent>
           <form action={signUpAction} className="space-y-5">
+            {params.next ? (
+              <input type="hidden" name="next" value={params.next} />
+            ) : null}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -69,7 +73,10 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
             ¿Ya tienes cuenta?{" "}
-            <Link href="/login" className="font-medium text-foreground underline">
+            <Link
+              href={params.next ? `/login?next=${encodeURIComponent(params.next)}` : "/login"}
+              className="font-medium text-foreground underline"
+            >
               Iniciar sesión
             </Link>
           </div>

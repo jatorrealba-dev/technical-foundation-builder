@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  initialInterviewQuestions,
+  interviewStages,
+  type AdaptiveInterviewQuestion,
+  type InterviewBatch,
   type InterviewStage,
   type ProjectInterview,
 } from "@/domain/interviews/interview";
@@ -38,16 +40,42 @@ type InterviewAnswerRow = {
   answered_at: string;
 };
 
+type InterviewQuestionRow = {
+  id: string;
+  question_id: string;
+  stage: AdaptiveInterviewQuestion["stage"];
+  question: string;
+  helper_text: string;
+  reason: string;
+  priority: AdaptiveInterviewQuestion["priority"];
+  source: AdaptiveInterviewQuestion["source"];
+  source_run_id: string | null;
+  status: AdaptiveInterviewQuestion["status"];
+  sort_order: number;
+  fingerprint: string;
+  affects_artifacts: AdaptiveInterviewQuestion["affectsArtifacts"];
+  risk_area: string | null;
+  is_required: boolean;
+  reviewer_comment: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type InterviewBatchRow = {
+  id: string;
+  source: InterviewBatch["source"];
+  source_run_id: string | null;
+  summary: string;
+  recommendation: InterviewBatch["recommendation"];
+  confidence: number | null;
+  missing_information: string[];
+  contradictions: string[];
+  question_count: number;
+  created_at: string;
+};
+
 function isInterviewStage(value: string): value is InterviewStage {
-  return (
-    value === "idea" ||
-    value === "product" ||
-    value === "users" ||
-    value === "domain" ||
-    value === "security" ||
-    value === "architecture" ||
-    value === "delivery"
-  );
+  return interviewStages.includes(value as InterviewStage);
 }
 
 export async function generateProjectModelAction(
@@ -144,24 +172,73 @@ export async function generateProjectModelAction(
     };
   }
 
-  const answeredQuestionIds = new Set(
-    storedAnswers.map((answer) => answer.question_id)
-  );
+  const [questionsResult, batchResult] = await Promise.all([
+    supabase
+      .from("interview_questions")
+      .select(
+        "id, question_id, stage, question, helper_text, reason, priority, source, source_run_id, status, sort_order, fingerprint, affects_artifacts, risk_area, is_required, reviewer_comment, created_at, updated_at"
+      )
+      .eq("project_id", projectId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("interview_question_batches")
+      .select(
+        "id, source, source_run_id, summary, recommendation, confidence, missing_information, contradictions, question_count, created_at"
+      )
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  const nextQuestion = initialInterviewQuestions.find(
-    (question) => !answeredQuestionIds.has(question.id)
+  if (questionsResult.error) {
+    return { ok: false, error: questionsResult.error.message };
+  }
+
+  if (batchResult.error) {
+    return { ok: false, error: batchResult.error.message };
+  }
+
+  const questions: AdaptiveInterviewQuestion[] = (
+    (questionsResult.data ?? []) as unknown as InterviewQuestionRow[]
+  ).map((question) => ({
+    databaseId: question.id,
+    id: question.question_id,
+    stage: question.stage,
+    question: question.question,
+    helperText: question.helper_text,
+    reason: question.reason,
+    priority: question.priority,
+    sortOrder: question.sort_order,
+    affectsArtifacts: question.affects_artifacts ?? [],
+    riskArea: question.risk_area,
+    required: question.is_required,
+    source: question.source,
+    sourceRunId: question.source_run_id,
+    status: question.status,
+    fingerprint: question.fingerprint,
+    reviewerComment: question.reviewer_comment,
+    createdAt: question.created_at,
+    updatedAt: question.updated_at,
+  }));
+
+  const nextQuestion = questions.find(
+    (question) =>
+      question.status === "pending" || question.status === "deferred"
   );
 
   const interviewStatus: ProjectInterview["status"] =
-    answeredQuestionIds.size >= initialInterviewQuestions.length
-      ? "completed"
-      : "in_progress";
+    session.status === "completed" ? "completed" : "in_progress";
 
   const currentStage: InterviewStage =
     nextQuestion?.stage ??
     (isInterviewStage(session.current_stage)
       ? session.current_stage
       : "delivery");
+
+  const batch = batchResult.data
+    ? (batchResult.data as unknown as InterviewBatchRow)
+    : null;
 
   const interview: ProjectInterview = {
     projectId,
@@ -172,6 +249,21 @@ export async function generateProjectModelAction(
       answer: answer.answer,
       answeredAt: answer.answered_at,
     })),
+    questions,
+    latestBatch: batch
+      ? {
+          id: batch.id,
+          source: batch.source,
+          sourceRunId: batch.source_run_id,
+          summary: batch.summary,
+          recommendation: batch.recommendation,
+          confidence: batch.confidence,
+          missingInformation: batch.missing_information ?? [],
+          contradictions: batch.contradictions ?? [],
+          questionCount: batch.question_count,
+          createdAt: batch.created_at,
+        }
+      : null,
     createdAt: session.created_at,
     updatedAt: session.updated_at,
   };
@@ -206,6 +298,9 @@ export async function generateProjectModelAction(
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}/analysis`);
+  revalidatePath(
+    `/projects/${projectId}/analysis/history`
+  );
 
   return {
     ok: true,

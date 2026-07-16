@@ -9,8 +9,16 @@ import {
 import { createProjectAgent } from "@/agents/create-project-agent";
 import { getAgentDefinition } from "@/agents/registry";
 import type { AgentKey } from "@/domain/agents/agent";
+import {
+  classifyAgentRuntimeError,
+  getAiRuntimeErrorMessage,
+} from "@/domain/operations/ai-governance";
 import { requireAiRuntimeConfiguration } from "@/lib/ai/config";
+import { createCorrelationId } from "@/lib/observability/correlation";
+import { logOperationalEvent } from "@/lib/observability/logger";
+import { sanitizeOperationalError } from "@/lib/runtime/error-sanitization";
 import { createClient } from "@/lib/supabase/server";
+import { runWithTimeout } from "@/services/operations/run-with-timeout";
 
 import {
   buildProjectAgentInput,
@@ -36,63 +44,45 @@ export type ExecuteProjectAgentResult =
       runId?: string;
     };
 
-type AgentRunInsertRow = {
-  id: string;
+type AgentRunReservationRow = {
+  run_id: string;
+  run_timeout_seconds: number;
+  daily_runs_used: number;
+  daily_runs_limit: number;
+  monthly_tokens_used: number;
+  monthly_tokens_limit: number;
 };
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Ocurrió un error desconocido al ejecutar el agente.";
-}
-
-async function appendRunEvent(input: {
-  supabase: ExecuteProjectAgentInput["supabase"];
-  runId: string;
-  eventType: string;
-  payload?: Record<string, unknown>;
-}): Promise<void> {
-  const { error } = await input.supabase
-    .from("agent_run_events")
-    .insert({
-      run_id: input.runId,
-      event_type: input.eventType,
-      payload: input.payload ?? {},
-    });
-
-  if (error) {
-    console.error(
-      "No se pudo registrar un evento del agente.",
-      error.message
-    );
-  }
+  return sanitizeOperationalError(
+    error,
+    "Ocurrió un error desconocido al ejecutar el agente."
+  );
 }
 
 export async function executeProjectAgent(
   input: ExecuteProjectAgentInput
 ): Promise<ExecuteProjectAgentResult> {
   let runId: string | undefined;
+  const correlationId = createCorrelationId();
   const startedAt = new Date();
+  let organizationId: string | undefined;
 
   try {
-    const configuration =
-      requireAiRuntimeConfiguration();
+    const configuration = requireAiRuntimeConfiguration();
+    const definition = getAgentDefinition(input.agentKey);
 
-    const definition = getAgentDefinition(
-      input.agentKey
-    );
-
-    const contextResult =
-      await loadProjectAgentContext({
-        supabase: input.supabase,
-        projectId: input.projectId,
-      });
+    const contextResult = await loadProjectAgentContext({
+      supabase: input.supabase,
+      projectId: input.projectId,
+    });
 
     if (!contextResult.ok) {
       return contextResult;
     }
+
+    organizationId =
+      contextResult.context.project.organization_id;
 
     if (
       definition.requiresProjectModel &&
@@ -116,66 +106,91 @@ export async function executeProjectAgent(
       };
     }
 
-    const { data: runData, error: runInsertError } =
-      await input.supabase
-        .from("agent_runs")
-        .insert({
-          project_id: input.projectId,
-          agent_key: input.agentKey,
-          status: "running",
-          provider: "openai",
-          model: configuration.model,
-          prompt_version:
-            definition.promptVersion,
-          input_snapshot: contextResult.context,
-          created_by: input.userId,
-          started_at: startedAt.toISOString(),
-          updated_at: startedAt.toISOString(),
-        })
-        .select("id")
-        .single();
+    const { data: reservationData, error: reservationError } =
+      await input.supabase.rpc("reserve_agent_run", {
+        target_project_id: input.projectId,
+        target_agent_key: input.agentKey,
+        target_provider: "openai",
+        target_model: configuration.model,
+        target_prompt_version: definition.promptVersion,
+        target_input_snapshot: contextResult.context,
+        target_correlation_id: correlationId,
+      });
 
-    if (runInsertError) {
+    if (reservationError) {
+      const message = getErrorMessage(reservationError.message);
+      const failureCode = classifyAgentRuntimeError(message);
+
+      logOperationalEvent({
+        level: "warn",
+        event: "agent.run.rejected",
+        correlationId,
+        organizationId,
+        projectId: input.projectId,
+        userId: input.userId,
+        metadata: {
+          agentKey: input.agentKey,
+          failureCode,
+        },
+      });
+
       return {
         ok: false,
-        error: runInsertError.message,
+        error: getAiRuntimeErrorMessage(message),
       };
     }
 
-    runId = (
-      runData as unknown as AgentRunInsertRow
-    ).id;
+    const reservation = (
+      reservationData as unknown as AgentRunReservationRow[]
+    )?.[0];
 
-    await appendRunEvent({
-      supabase: input.supabase,
+    if (!reservation?.run_id) {
+      return {
+        ok: false,
+        error:
+          "No se pudo reservar la ejecución del agente.",
+      };
+    }
+
+    runId = reservation.run_id;
+
+    logOperationalEvent({
+      level: "info",
+      event: "agent.run.started",
+      correlationId,
+      organizationId,
+      projectId: input.projectId,
       runId,
-      eventType: "run_started",
-      payload: {
+      userId: input.userId,
+      metadata: {
         agentKey: input.agentKey,
         model: configuration.model,
-        promptVersion:
-          definition.promptVersion,
+        promptVersion: definition.promptVersion,
+        timeoutSeconds: reservation.run_timeout_seconds,
+        dailyRunsUsed: reservation.daily_runs_used,
+        dailyRunsLimit: reservation.daily_runs_limit,
+        monthlyTokensUsed: reservation.monthly_tokens_used,
+        monthlyTokensLimit: reservation.monthly_tokens_limit,
       },
     });
 
     setDefaultOpenAIKey(configuration.apiKey);
-    setTracingDisabled(
-      !configuration.tracingEnabled
-    );
+    setTracingDisabled(!configuration.tracingEnabled);
 
     const agent = createProjectAgent({
       key: input.agentKey,
       model: configuration.model,
     });
 
-    const result = await run(
-      agent,
-      buildProjectAgentInput(
-        contextResult.context
+    const result = await runWithTimeout(
+      run(
+        agent,
+        buildProjectAgentInput(contextResult.context),
+        {
+          maxTurns: configuration.maxTurns,
+        }
       ),
-      {
-        maxTurns: 3,
-      }
+      reservation.run_timeout_seconds
     );
 
     if (result.finalOutput === undefined) {
@@ -187,25 +202,17 @@ export async function executeProjectAgent(
     const completedAt = new Date();
     const usage = result.state.usage;
     const latencyMs =
-      completedAt.getTime() -
-      startedAt.getTime();
+      completedAt.getTime() - startedAt.getTime();
 
     const { error: completionError } =
-      await input.supabase
-        .from("agent_runs")
-        .update({
-          status: "completed",
-          output: result.finalOutput,
-          input_tokens: usage.inputTokens,
-          output_tokens: usage.outputTokens,
-          total_tokens: usage.totalTokens,
-          latency_ms: latencyMs,
-          completed_at:
-            completedAt.toISOString(),
-          updated_at:
-            completedAt.toISOString(),
-        })
-        .eq("id", runId);
+      await input.supabase.rpc("complete_agent_run", {
+        target_run_id: runId,
+        target_output: result.finalOutput,
+        target_input_tokens: usage.inputTokens,
+        target_output_tokens: usage.outputTokens,
+        target_total_tokens: usage.totalTokens,
+        target_latency_ms: latencyMs,
+      });
 
     if (completionError) {
       throw new Error(
@@ -213,15 +220,20 @@ export async function executeProjectAgent(
       );
     }
 
-    await appendRunEvent({
-      supabase: input.supabase,
+    logOperationalEvent({
+      level: "info",
+      event: "agent.run.completed",
+      correlationId,
+      organizationId,
+      projectId: input.projectId,
       runId,
-      eventType: "run_completed",
-      payload: {
+      userId: input.userId,
+      durationMs: latencyMs,
+      metadata: {
+        agentKey: input.agentKey,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         totalTokens: usage.totalTokens,
-        latencyMs,
       },
     });
 
@@ -232,48 +244,58 @@ export async function executeProjectAgent(
     };
   } catch (error) {
     const message = getErrorMessage(error);
+    const failureCode = classifyAgentRuntimeError(message);
+    const completedAt = new Date();
+    const latencyMs =
+      completedAt.getTime() - startedAt.getTime();
 
     if (runId) {
-      const completedAt = new Date();
-      const latencyMs =
-        completedAt.getTime() -
-        startedAt.getTime();
+      const { error: failureError } =
+        await input.supabase.rpc("fail_agent_run", {
+          target_run_id: runId,
+          target_failure_code: failureCode,
+          target_error_message: message,
+          target_latency_ms: latencyMs,
+        });
 
-      const { error: failureUpdateError } =
-        await input.supabase
-          .from("agent_runs")
-          .update({
-            status: "failed",
-            error_message: message,
-            latency_ms: latencyMs,
-            completed_at:
-              completedAt.toISOString(),
-            updated_at:
-              completedAt.toISOString(),
-          })
-          .eq("id", runId);
-
-      if (failureUpdateError) {
-        console.error(
-          "No se pudo persistir el fallo del agente.",
-          failureUpdateError.message
-        );
+      if (failureError) {
+        logOperationalEvent({
+          level: "error",
+          event: "agent.run.failure_persistence_failed",
+          correlationId,
+          organizationId,
+          projectId: input.projectId,
+          runId,
+          userId: input.userId,
+          durationMs: latencyMs,
+          metadata: {
+            failureCode,
+            persistenceError: sanitizeOperationalError(
+              failureError.message
+            ),
+          },
+        });
       }
-
-      await appendRunEvent({
-        supabase: input.supabase,
-        runId,
-        eventType: "run_failed",
-        payload: {
-          error: message,
-          latencyMs,
-        },
-      });
     }
+
+    logOperationalEvent({
+      level: "error",
+      event: "agent.run.failed",
+      correlationId,
+      organizationId,
+      projectId: input.projectId,
+      runId,
+      userId: input.userId,
+      durationMs: latencyMs,
+      metadata: {
+        agentKey: input.agentKey,
+        failureCode,
+      },
+    });
 
     return {
       ok: false,
-      error: message,
+      error: getAiRuntimeErrorMessage(message),
       runId,
     };
   }
