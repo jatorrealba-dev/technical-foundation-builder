@@ -243,10 +243,9 @@ export default async function AiSettingsPage({
               <Progress value={tokenUsagePercentage}>
                 <ProgressLabel>Tokens</ProgressLabel>
                 <ProgressValue>
-                  {() =>
-                    `${formatNumber(usage.monthly_total_tokens)} / ${formatNumber(
-                      policy.monthly_token_limit
-                    )}`}
+                  {`${formatNumber(usage.monthly_total_tokens)} / ${formatNumber(
+                    policy.monthly_token_limit
+                  )}`}
                 </ProgressValue>
               </Progress>
               <div className="grid grid-cols-3 gap-3 text-sm">
@@ -277,8 +276,7 @@ export default async function AiSettingsPage({
               <Progress value={dailyUsagePercentage}>
                 <ProgressLabel>Ejecuciones de hoy</ProgressLabel>
                 <ProgressValue>
-                  {() =>
-                    `${usage.current_user_daily_runs} / ${policy.daily_run_limit_per_user}`}
+                  {`${usage.current_user_daily_runs} / ${policy.daily_run_limit_per_user}`}
                 </ProgressValue>
               </Progress>
               <div className="text-sm">
