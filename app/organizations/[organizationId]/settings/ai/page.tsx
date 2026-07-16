@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import {
   Progress,
   ProgressLabel,
-  ProgressValue,
 } from "@/components/ui/progress";
 import {
   calculateUsagePercentage,
@@ -242,12 +241,11 @@ export default async function AiSettingsPage({
             <CardContent className="space-y-4">
               <Progress value={tokenUsagePercentage}>
                 <ProgressLabel>Tokens</ProgressLabel>
-                <ProgressValue>
-                  {`${formatNumber(usage.monthly_total_tokens)} / ${formatNumber(
-                    policy.monthly_token_limit
-                  )}`}
-                </ProgressValue>
               </Progress>
+              <p className="text-sm text-muted-foreground">
+                {formatNumber(usage.monthly_total_tokens)} /{" "}
+                {formatNumber(policy.monthly_token_limit)}
+              </p>
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <div>
                   <p className="font-medium">Ejecuciones</p>
@@ -275,10 +273,10 @@ export default async function AiSettingsPage({
             <CardContent className="space-y-4">
               <Progress value={dailyUsagePercentage}>
                 <ProgressLabel>Ejecuciones de hoy</ProgressLabel>
-                <ProgressValue>
-                  {`${usage.current_user_daily_runs} / ${policy.daily_run_limit_per_user}`}
-                </ProgressValue>
               </Progress>
+              <p className="text-sm text-muted-foreground">
+                {usage.current_user_daily_runs} / {policy.daily_run_limit_per_user}
+              </p>
               <div className="text-sm">
                 <p className="font-medium">Ejecuciones activas en la organización</p>
                 <p className="text-muted-foreground">{usage.active_runs}</p>
