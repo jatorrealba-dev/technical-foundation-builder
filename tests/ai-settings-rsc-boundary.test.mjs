@@ -1,21 +1,50 @@
+import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import test from "node:test";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const pagePath = new URL(
-  "../app/organizations/[organizationId]/settings/ai/page.tsx",
-  import.meta.url
+const testDirectory = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(testDirectory, "..");
+
+const pagePath = resolve(
+  projectRoot,
+  "app/organizations/[organizationId]/settings/ai/page.tsx"
 );
 
-test("AI settings does not pass render functions from a Server Component to ProgressValue", async () => {
-  const source = await readFile(pagePath, "utf8");
-  const progressValueBlocks = [
-    ...source.matchAll(/<ProgressValue>([\s\S]*?)<\/ProgressValue>/g),
-  ];
+test(
+  "AI settings renders usage values without ProgressValue across the RSC boundary",
+  async () => {
+    const source = await readFile(pagePath, "utf8");
 
-  assert.equal(progressValueBlocks.length, 2);
+    assert.equal(
+      source.includes("ProgressValue"),
+      false,
+      "The Server Component must not import or render ProgressValue."
+    );
 
-  for (const [, children] of progressValueBlocks) {
-    assert.doesNotMatch(children, /\{\s*\(\)\s*=>/);
+    assert.match(
+      source,
+      /formatNumber\(usage\.monthly_total_tokens\)/,
+      "Monthly token consumption must remain visible."
+    );
+
+    assert.match(
+      source,
+      /formatNumber\(policy\.monthly_token_limit\)/,
+      "Monthly token limit must remain visible."
+    );
+
+    assert.match(
+      source,
+      /usage\.current_user_daily_runs/,
+      "Daily run consumption must remain visible."
+    );
+
+    assert.match(
+      source,
+      /policy\.daily_run_limit_per_user/,
+      "Daily run limit must remain visible."
+    );
   }
-});
+);
