@@ -243,7 +243,11 @@ export async function runConversationalDiscovery(input: {
       runId,
       userId: input.userId,
       durationMs: latencyMs,
-      metadata: { failureCode, turnId },
+      metadata: {
+        failureCode,
+        turnId,
+        errorMessage: message,
+      },
     });
 
     return { ok: false, error: getAiRuntimeErrorMessage(message) };
